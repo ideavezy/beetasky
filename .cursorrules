@@ -1,0 +1,198 @@
+# Cursor Rules for BeetaSky (CRM System)
+
+## ⚠️ MANDATORY: Before ANY Task
+
+Before starting ANY coding task, you MUST:
+
+### 1. Read Project Documentation
+
+**ALWAYS read these plan files first to understand the project context:**
+
+```
+plan/architecture-plan.md    - Tech stack, database schema, folder structure, implementation phases
+plan/ui-requirements.md      - Design philosophy, colors, typography, DaisyUI components, styling rules
+plan/project-management.md   - Project/Task system, database tables, API routes, components
+plan/environment-setup.md    - Environment variables, Supabase setup, development URLs
+plan/deployment-config.md    - Production deployment, CORS, session config, security
+```
+
+**Read the relevant plan files before:**
+- Creating new features → Read `architecture-plan.md` + `ui-requirements.md`
+- Working on UI/components → Read `ui-requirements.md`
+- Database/API work → Read `architecture-plan.md` + `project-management.md`
+- Setting up environments → Read `environment-setup.md`
+- Deployment tasks → Read `deployment-config.md`
+
+### 2. Use Context7 for Library Documentation
+
+**ALWAYS use context7 MCP server to get up-to-date documentation for any library you're working with.**
+
+Before implementing features with these libraries, fetch their docs:
+- **React** - Use context7 for hooks, components, patterns
+- **Tailwind CSS** - Use context7 for utility classes, configuration
+- **DaisyUI** - Use context7 for components, themes, styling
+- **Supabase** - Use context7 for auth, database, realtime
+- **Laravel** - Use context7 for controllers, middleware, Eloquent
+- **Vite** - Use context7 for configuration, plugins
+- **React Router** - Use context7 for routing patterns
+
+**How to use context7:**
+1. First call `resolve-library-id` to get the correct library ID
+2. Then call `get-library-docs` with the resolved ID and relevant topic
+
+---
+
+## Project Context
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Monorepo | Turborepo + PNPM Workspaces |
+| Backend | Laravel 12 |
+| Marketing Site | Next.js 15 (App Router) |
+| Portal & Client | React 18 + Vite |
+| Shared Packages | @beemud/ui, @beemud/hooks, @beemud/types |
+| CSS Framework | Tailwind CSS + DaisyUI |
+| Database | Supabase (PostgreSQL + pgvector) |
+| Auth | Supabase Auth |
+| Realtime Chat | Laravel Broadcasting + Soketi |
+| Storage | Bunny CDN + Bunny Stream |
+| AI/LLM | OpenAI API |
+
+### Folder Structure
+
+```
+/beetasky
+├── /plan                    # Documentation (READ FIRST!)
+├── /apps
+│   ├── /marketing           # Next.js - Public website
+│   ├── /portal              # React + Vite - Admin dashboard
+│   └── /client              # React + Vite - Customer portal
+├── /backend                 # Laravel 12 API
+├── /packages
+│   ├── /ui                  # Shared UI components
+│   ├── /hooks               # Shared React hooks
+│   └── /types               # Shared TypeScript types
+├── pnpm-workspace.yaml
+├── turbo.json
+└── package.json
+```
+
+---
+
+## Design System Rules
+
+### Theme: Dark Mode Default
+
+- Use DaisyUI semantic classes: `bg-base-100`, `bg-base-200`, `bg-base-300`
+- Text: `text-base-content`, `text-primary`, `text-secondary`
+- Primary color is golden/amber for main actions
+- Always design dark theme first
+
+### Typography
+
+- **Font**: Poppins (already loaded locally)
+- **Weights**: 400 (body), 500 (buttons), 600 (headings)
+- No need to specify font family - it's the default
+
+### Components
+
+- **Buttons**: `btn btn-primary`, `btn btn-ghost`, `btn btn-outline`
+- **Cards**: `card bg-base-200` with `padding="sm"` prop
+- **Inputs**: `input input-bordered`, `select select-bordered`
+- **Tables**: `table` with optional `table-zebra`
+
+### Icons
+
+- Use **Heroicons** only: `@heroicons/react/24/outline`
+- NO emoji icons allowed
+- Always import from outline style
+
+### Spacing
+
+- Use Tailwind spacing: `p-4`, `gap-6`, `space-y-4`
+- Generous padding - when in doubt, add more space
+- Minimum 24px padding inside cards
+
+---
+
+## Coding Standards
+
+### React/TypeScript
+
+```typescript
+// Use functional components with TypeScript
+interface Props {
+  title: string;
+  onClick?: () => void;
+}
+
+export function MyComponent({ title, onClick }: Props) {
+  return <div>{title}</div>;
+}
+```
+
+### API Routes (Laravel)
+
+- All routes protected by `supabase.auth` middleware
+- Company-scoped data with `company.scope` middleware
+- Use resource controllers for CRUD operations
+
+### Database
+
+- All tables have `company_id` for multi-tenancy
+- Use `deleted_at` for soft deletes
+- TIMESTAMPTZ for all timestamps
+- JSONB with explicit defaults: `'{}'::jsonb`
+
+---
+
+## DO's
+
+- ✅ Read plan files before starting any task
+- ✅ Use context7 for library documentation
+- ✅ Use DaisyUI components and classes
+- ✅ Follow dark theme design
+- ✅ Use Heroicons for all icons
+- ✅ Maintain consistent spacing
+- ✅ Write TypeScript with proper types
+- ✅ Keep code simple and focused
+
+## DON'Ts
+
+- ❌ Start coding without reading plan docs
+- ❌ Guess library APIs - use context7
+- ❌ Use emoji icons
+- ❌ Add decorative elements without purpose
+- ❌ Use light theme as default
+- ❌ Mix icon libraries
+- ❌ Over-engineer solutions
+- ❌ Add features not requested
+
+---
+
+## Quick Commands
+
+When asked to work on:
+
+1. **New Feature** → Read `architecture-plan.md` + `ui-requirements.md` + use context7
+2. **UI Component** → Read `ui-requirements.md` + context7 for DaisyUI/Tailwind
+3. **Database Work** → Read `architecture-plan.md` schema section
+4. **API Endpoint** → Read `project-management.md` for API patterns
+5. **Authentication** → Read `architecture-plan.md` auth section + context7 for Supabase
+6. **Deployment** → Read `deployment-config.md`
+
+---
+
+## Example Workflow
+
+When user asks: "Create a new dashboard component"
+
+1. **Read**: `plan/ui-requirements.md` for design rules
+2. **Read**: `plan/architecture-plan.md` for component patterns
+3. **Context7**: Get DaisyUI docs for component styling
+4. **Context7**: Get React docs if using specific hooks
+5. **Implement**: Following the design system and patterns
+
+This ensures consistent, well-documented code that fits the project architecture.

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Your Email - BeeMud</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Poppins', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #2a2d3a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #2a2d3a;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #3a3d4a; border-radius: 12px; overflow: hidden;">
+          <!-- Logo Header -->
+          <tr>
+            <td align="center" style="padding: 40px 40px 30px 40px; background-color: #32353f;">
+              <img src="{{ .SiteURL }}/brand/logo-white.webp" alt="BeeMud" width="180" style="display: block; max-width: 180px; height: auto;">
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: 600; color: #f5f7ff; text-align: center;">
+                Confirm Your Email
+              </h1>
+              
+              <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #c5c8d4; text-align: center;">
+                Thanks for signing up! Please confirm your email address by clicking the button below.
+              </p>
+              
+              <!-- CTA Button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 10px 0 30px 0;">
+                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 16px 40px; background-color: #d4a853; color: #1a1c24; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">
+                      Confirm Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Alternative OTP -->
+              <p style="margin: 0 0 15px 0; font-size: 14px; color: #8b8e9a; text-align: center;">
+                Or use this verification code:
+              </p>
+              
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center">
+                    <div style="display: inline-block; padding: 15px 30px; background-color: #32353f; border-radius: 8px; font-size: 32px; font-weight: 700; color: #d4a853; letter-spacing: 8px; font-family: 'JetBrains Mono', 'SF Mono', monospace;">
+                      {{ .Token }}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin: 30px 0 0 0; font-size: 14px; color: #6b6e7a; text-align: center;">
+                If you didn't create an account, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #32353f; border-top: 1px solid #4a4d5a;">
+              <p style="margin: 0; font-size: 12px; color: #6b6e7a; text-align: center;">
+                © {{ .SiteURL }} • This is an automated message, please do not reply.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+
+
+
