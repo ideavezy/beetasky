@@ -9,7 +9,7 @@
 | **Marketing Site** | Next.js 15 (App Router) |
 | **Portal & Client** | React 18 + Vite |
 | **Shared Packages** | @beemud/ui, @beemud/hooks, @beemud/types |
-| **CSS Framework** | Tailwind CSS + DaisyUI |
+| **CSS Framework** | Tailwind CSS + DaisyUI which we must make Daisy work and use Daisy UI as standard |
 | **Database** | Supabase (PostgreSQL + pgvector) |
 | **Auth** | Supabase Auth (Email/Password, OAuth, Magic Link) |
 | **Realtime Chat** | Laravel Broadcasting + Soketi (Pusher-compatible) |
