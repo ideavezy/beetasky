@@ -19,11 +19,13 @@ interface CreateTaskModalProps {
 
 export default function CreateTaskModal({
   topicId,
-  projectId,
+  projectId: _projectId,
   topicName,
   onClose,
   onSuccess,
 }: CreateTaskModalProps) {
+  // projectId is passed for potential future use but not currently needed
+  void _projectId
   const [taskTitle, setTaskTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('medium') // Default to Medium

@@ -18,7 +18,6 @@ export default function AuthPage({ initialMode = 'signin' }: AuthPageProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [resetEmailSent, setResetEmailSent] = useState(false)
   const [isResettingPassword, setIsResettingPassword] = useState(false)
   
   // Form states
@@ -38,7 +37,6 @@ export default function AuthPage({ initialMode = 'signin' }: AuthPageProps) {
     clearError()
     setLocalError(null)
     setSuccessMessage(null)
-    setResetEmailSent(false)
     
     setTimeout(() => {
       setMode(newMode)
@@ -116,7 +114,6 @@ export default function AuthPage({ initialMode = 'signin' }: AuthPageProps) {
   const handleForgotPassword = async () => {
     setLocalError(null)
     clearError()
-    setResetEmailSent(false)
     
     // Validate email
     if (!email || !email.trim()) {
@@ -136,7 +133,6 @@ export default function AuthPage({ initialMode = 'signin' }: AuthPageProps) {
     setIsResettingPassword(false)
     
     if (success) {
-      setResetEmailSent(true)
       setSuccessMessage('Password reset link sent! Check your email inbox.')
     }
   }

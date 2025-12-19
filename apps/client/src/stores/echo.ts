@@ -24,7 +24,8 @@ interface EchoState {
   updateAuth: (token: string) => void
   
   // Channel helpers
-  getEcho: () => Echo | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getEcho: () => Echo<any> | null
   subscribeToPrivate: (channelName: string) => Channel | null
   subscribeToPresence: (channelName: string) => PresenceChannel | null
   leaveChannel: (channelName: string) => void

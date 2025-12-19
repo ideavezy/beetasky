@@ -8,7 +8,6 @@ import {
   UserPlus,
   Send,
   Paperclip,
-  FileText,
   Image as ImageIcon,
   MessageSquare,
   Activity,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { api } from '../lib/api'
-import { useAuthStore } from '../stores/auth'
 
 interface TaskComment {
   id: string
@@ -113,7 +111,6 @@ export default function TaskDetailDrawer({
   onUpdateTask,
   projectMembers = [],
 }: TaskDetailDrawerProps) {
-  const { user } = useAuthStore()
   const drawerRef = useRef<HTMLDivElement>(null)
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   

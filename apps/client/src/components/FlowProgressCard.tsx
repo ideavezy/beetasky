@@ -217,7 +217,7 @@ export default function FlowProgressCard({ flow, onSelect, compact = false }: Fl
                       {step.errorMessage}
                     </p>
                   )}
-                  {step.status === 'completed' && step.result && (
+                  {step.status === 'completed' && step.result !== null && (
                     <p className="text-xs text-success/70 mt-1">
                       ✓ Completed
                     </p>
@@ -228,14 +228,14 @@ export default function FlowProgressCard({ flow, onSelect, compact = false }: Fl
           </div>
 
           {/* Error Message */}
-          {flow.lastError && flow.status === 'failed' && (
+          {flow.status === 'failed' && flow.lastError ? (
             <div className="mt-4 p-3 bg-error/10 border border-error/20 rounded-lg">
               <p className="text-sm text-error">{flow.lastError}</p>
             </div>
-          )}
+          ) : null}
 
           {/* Suggestions */}
-          {flow.status === 'completed' && flow.flowContext?.suggestions && Array.isArray(flow.flowContext.suggestions) && (
+          {flow.status === 'completed' && Array.isArray(flow.flowContext?.suggestions) ? (
             <div className="mt-4">
               {(flow.flowContext.suggestions as Array<{ message: string; action: string }>).map((suggestion: { message: string; action: string }, i: number) => (
                 <div 
@@ -249,7 +249,7 @@ export default function FlowProgressCard({ flow, onSelect, compact = false }: Fl
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

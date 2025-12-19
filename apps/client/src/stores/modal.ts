@@ -76,19 +76,9 @@ export interface CreateDealModalProps {
   onSuccess?: (deal: any) => void
 }
 
-// Union of all modal props
-export type ModalProps = 
-  | CreateCompanyModalProps 
-  | CreateProjectModalProps 
-  | CreateTopicModalProps 
-  | CreateTaskModalProps
-  | CreateContactModalProps
-  | EditContactModalProps
-  | AddActivityModalProps
-  | AlertModalProps
-  | LinkProjectModalProps
-  | CreateDealModalProps
-  | Record<string, any>
+// Generic modal props - uses Record for flexibility since we access properties dynamically
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ModalProps = Record<string, any>
 
 interface ModalState {
   // Current active modal (null if none open)

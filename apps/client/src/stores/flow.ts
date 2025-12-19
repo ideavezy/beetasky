@@ -113,7 +113,7 @@ interface FlowState {
   clearError: () => void
 }
 
-export const useFlowStore = create<FlowState>((set, get) => ({
+export const useFlowStore = create<FlowState>((set, _get) => ({
   // Initial state
   activeFlows: [],
   currentFlow: null,

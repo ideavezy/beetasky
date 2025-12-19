@@ -7,14 +7,12 @@ import {
   MoreHorizontal,
   User,
   Calendar,
-  CheckCircle,
   XCircle,
   RefreshCw,
   Loader2,
   ArrowRight,
   Trophy,
   Target,
-  ChevronDown,
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import { useModalStore, MODAL_NAMES } from '../stores/modal'
@@ -86,11 +84,11 @@ export default function DealsPage() {
   const [movingDeal, setMovingDeal] = useState<string | null>(null)
   
   const { openModal } = useModalStore()
-  const { user, companyId } = useAuthStore()
+  const { company } = useAuthStore()
 
   // Fetch deals
   const fetchDeals = useCallback(async () => {
-    if (!companyId) return
+    if (!company?.id) return
     
     setIsLoading(true)
     setError(null)
@@ -110,11 +108,11 @@ export default function DealsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [companyId, showClosedDeals, searchQuery])
+  }, [company?.id, showClosedDeals, searchQuery])
 
   // Fetch pipeline stats
   const fetchStats = useCallback(async () => {
-    if (!companyId) return
+    if (!company?.id) return
     
     setIsLoadingStats(true)
     
@@ -126,7 +124,7 @@ export default function DealsPage() {
     } finally {
       setIsLoadingStats(false)
     }
-  }, [companyId])
+  }, [company?.id])
 
   useEffect(() => {
     fetchDeals()

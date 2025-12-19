@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { api, getAuthToken } from '../lib/api'
-import { useFlowStore } from './flow'
 
 // Chat message type
 export interface ChatMessage {

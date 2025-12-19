@@ -5,13 +5,15 @@ import Pusher from 'pusher-js'
 declare global {
   interface Window {
     Pusher: typeof Pusher
-    Echo: Echo | null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Echo: Echo<any> | null
   }
 }
 
 window.Pusher = Pusher
 
-let echoInstance: Echo | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let echoInstance: Echo<any> | null = null
 
 export interface EchoConfig {
   key: string
@@ -26,7 +28,8 @@ export interface EchoConfig {
  * @param config - Configuration from backend API
  * @param authToken - Supabase access token for authentication
  */
-export function initializeEcho(config: EchoConfig, authToken: string): Echo {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function initializeEcho(config: EchoConfig, authToken: string): Echo<any> {
   // Clean up existing instance if any
   if (echoInstance) {
     echoInstance.disconnect()
@@ -88,7 +91,8 @@ export function initializeEcho(config: EchoConfig, authToken: string): Echo {
 /**
  * Get the current Echo instance
  */
-export function getEcho(): Echo | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getEcho(): Echo<any> | null {
   return echoInstance
 }
 

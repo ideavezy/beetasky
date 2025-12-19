@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, DollarSign, Calendar, User, Loader2 } from 'lucide-react'
+import { X, DollarSign, Calendar, Loader2 } from 'lucide-react'
 import { useModalStore, MODAL_NAMES, CreateDealModalProps } from '../../stores/modal'
 import { useAuthStore } from '../../stores/auth'
 import { api } from '../../lib/api'
@@ -19,7 +19,7 @@ const STAGES = [
 
 export default function CreateDealModal() {
   const { activeModal, modalProps, closeModal } = useModalStore()
-  const { companyId } = useAuthStore()
+  const { company } = useAuthStore()
   const props = modalProps as CreateDealModalProps
 
   const [formData, setFormData] = useState({
@@ -57,7 +57,7 @@ export default function CreateDealModal() {
   }, [isOpen, props?.contactId])
 
   const fetchContacts = async () => {
-    if (!companyId) return
+    if (!company?.id) return
     setIsLoadingContacts(true)
     
     try {

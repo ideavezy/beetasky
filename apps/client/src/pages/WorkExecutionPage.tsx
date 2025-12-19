@@ -4,28 +4,22 @@ import {
   List,
   LayoutGrid,
   Search,
-  Filter,
   Calendar,
   CheckCircle2,
   Circle,
   Clock,
   AlertTriangle,
-  ChevronDown,
   X,
-  GripVertical,
   Flame,
   Zap,
   User,
-  FolderOpen,
   MessageSquare,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  MoreVertical,
 } from 'lucide-react'
 import {
   DndContext,
-  closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -547,7 +541,6 @@ export default function WorkExecutionPage() {
 
   const [selectedTask, setSelectedTask] = useState<WorkExecutionTask | null>(null)
   const [activeDragTask, setActiveDragTask] = useState<WorkExecutionTask | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search)
 
   // DnD sensors

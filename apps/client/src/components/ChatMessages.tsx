@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 import { Sparkles, User, AlertCircle, RotateCcw } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import { useChatStore, type ChatMessage } from '../stores/chat'
@@ -59,7 +59,7 @@ const markdownComponents: Components = {
   },
 
   // Code blocks
-  code: ({ className, children, ...props }) => {
+  code: ({ className, children }) => {
     // Check if it's inline code or a code block
     const isInline = !className && !String(children).includes('\n')
     
@@ -114,7 +114,7 @@ const markdownComponents: Components = {
 }
 
 export default function ChatMessages({ onRetry }: ChatMessagesProps) {
-  const { messages, isStreaming, error } = useChatStore()
+  const { messages } = useChatStore()
   const { send } = useChatActions()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)

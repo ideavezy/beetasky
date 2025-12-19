@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, UserCog, Loader2, Mail, Phone, Building2, Briefcase, Globe, ChevronDown } from 'lucide-react'
 import { api } from '../../lib/api'
-import { useAuthStore } from '../../stores/auth'
 
 interface Contact {
   id: string
@@ -43,7 +42,6 @@ const SOURCE_OPTIONS = [
 ]
 
 export default function EditContactModal({ contact, onClose, onSuccess }: EditContactModalProps) {
-  const { company } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)

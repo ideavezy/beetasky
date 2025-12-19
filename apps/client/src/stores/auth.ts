@@ -692,7 +692,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         
         try {
-          const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+          const { error } = await supabase.auth.mfa.challengeAndVerify({
             factorId,
             code,
           })

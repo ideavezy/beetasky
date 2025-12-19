@@ -171,7 +171,6 @@ function CategorySection({ category, categoryName, skills, onConfigureSkill, onT
 export default function SkillsPage() {
   const {
     skills,
-    skillsByCategory,
     categories,
     isLoading,
     error,
