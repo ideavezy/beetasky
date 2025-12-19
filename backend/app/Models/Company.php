@@ -55,7 +55,7 @@ class Company extends Model
      */
     public function activeUsers(): BelongsToMany
     {
-        return $this->users()->wherePivot('is_active', true);
+        return $this->users()->whereRaw('company_user.is_active = true');
     }
 
     /**

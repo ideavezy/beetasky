@@ -190,6 +190,7 @@ class Project extends Model
 
     /**
      * Get the completion percentage of the project.
+     * Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares.
      */
     public function getCompletionPercentageAttribute(): float
     {
@@ -199,17 +200,18 @@ class Project extends Model
             return 0;
         }
         
-        $completedTasks = $this->tasks()->where('completed', true)->count();
+        $completedTasks = $this->tasks()->whereRaw('completed = true')->count();
         
         return round(($completedTasks / $totalTasks) * 100, 1);
     }
 
     /**
      * Get completed tasks count.
+     * Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares.
      */
     public function getCompletedTasksCountAttribute(): int
     {
-        return $this->tasks()->where('completed', true)->count();
+        return $this->tasks()->whereRaw('completed = true')->count();
     }
 
     /**

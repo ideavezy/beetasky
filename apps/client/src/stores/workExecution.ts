@@ -201,12 +201,12 @@ export const useWorkExecutionStore = create<WorkExecutionState>()(
           }
           
           // Status filter
-          if (filters.status.length > 0) {
+          if (filters.status && filters.status.length > 0) {
             filters.status.forEach((s) => params.append('status[]', s))
           }
           
           // Priority filter
-          if (filters.priority.length > 0) {
+          if (filters.priority && filters.priority.length > 0) {
             filters.priority.forEach((p) => params.append('priority[]', p))
           }
           
@@ -423,6 +423,19 @@ export const useWorkExecutionStore = create<WorkExecutionState>()(
         },
         sort: state.sort,
       }),
+      // Properly merge persisted state with defaults to avoid undefined properties
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<WorkExecutionState>
+        return {
+          ...currentState,
+          viewMode: persisted.viewMode ?? currentState.viewMode,
+          sort: { ...currentState.sort, ...persisted.sort },
+          filters: {
+            ...currentState.filters,
+            ...persisted.filters,
+          },
+        }
+      },
     }
   )
 )

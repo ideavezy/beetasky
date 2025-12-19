@@ -99,7 +99,7 @@ class User extends Authenticatable
      */
     public function activeCompanies(): BelongsToMany
     {
-        return $this->companies()->wherePivot('is_active', true);
+        return $this->companies()->whereRaw('company_user.is_active = true');
     }
 
     /**
@@ -180,7 +180,7 @@ class User extends Authenticatable
     {
         return $this->companies()
             ->wherePivot('company_id', $company->id)
-            ->wherePivot('is_active', true)
+            ->whereRaw('company_user.is_active = true')
             ->exists();
     }
 

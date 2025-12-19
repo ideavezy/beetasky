@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './components/AuthProvider'
-import { AuthGuard, GuestGuard } from './components/AuthGuard'
+import { AuthGuard, GuestGuard, OwnerGuard } from './components/AuthGuard'
 import ModalManager from './components/ModalManager'
 import AuthPage from './pages/AuthPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -9,6 +9,9 @@ import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import WorkExecutionPage from './pages/WorkExecutionPage'
 import MyAccountPage from './pages/MyAccountPage'
+import CRMPage from './pages/CRMPage'
+import ContactDetailPage from './pages/ContactDetailPage'
+import SkillsPage from './pages/SkillsPage'
 
 function App() {
   return (
@@ -92,8 +95,24 @@ function App() {
             path="/crm"
             element={
               <AuthGuard>
-                <DashboardPage />
+                <CRMPage />
               </AuthGuard>
+            }
+          />
+          <Route
+            path="/crm/contacts/:id"
+            element={
+              <AuthGuard>
+                <ContactDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/skills"
+            element={
+              <OwnerGuard>
+                <SkillsPage />
+              </OwnerGuard>
             }
           />
           <Route

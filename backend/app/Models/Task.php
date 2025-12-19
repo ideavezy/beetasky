@@ -207,18 +207,20 @@ class Task extends Model
 
     /**
      * Scope to get completed tasks.
+     * Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares.
      */
     public function scopeCompleted($query)
     {
-        return $query->where('completed', true);
+        return $query->whereRaw('completed = true');
     }
 
     /**
      * Scope to get incomplete tasks.
+     * Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares.
      */
     public function scopeIncomplete($query)
     {
-        return $query->where('completed', false);
+        return $query->whereRaw('completed = false');
     }
 
     /**
@@ -228,7 +230,7 @@ class Task extends Model
     {
         return $query->whereDate('due_date', '>=', now())
             ->whereDate('due_date', '<=', now()->addDays(3))
-            ->where('completed', false);
+            ->whereRaw('completed = false');
     }
 
     /**
@@ -237,7 +239,7 @@ class Task extends Model
     public function scopeOverdue($query)
     {
         return $query->whereDate('due_date', '<', now())
-            ->where('completed', false);
+            ->whereRaw('completed = false');
     }
 
     /**

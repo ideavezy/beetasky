@@ -572,8 +572,9 @@ class TaskController extends Controller
         }
 
         // Exclude completed tasks
+        // Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares
         if ($request->boolean('exclude_completed')) {
-            $query->where('completed', false);
+            $query->whereRaw('completed = false');
         }
 
         // Filter by due date
@@ -581,11 +582,11 @@ class TaskController extends Controller
             switch ($request->due_filter) {
                 case 'overdue':
                     $query->where('due_date', '<', now())
-                          ->where('completed', false);
+                          ->whereRaw('completed = false');
                     break;
                 case 'due_soon':
                     $query->whereBetween('due_date', [now(), now()->addDays(7)])
-                          ->where('completed', false);
+                          ->whereRaw('completed = false');
                     break;
                 case 'today':
                     $query->whereDate('due_date', now());

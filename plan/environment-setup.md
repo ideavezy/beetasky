@@ -82,6 +82,28 @@ BUNNY_STREAM_API_KEY=your-stream-api-key
 
 # Note: Google OAuth is configured in Supabase Dashboard
 # No backend config needed - Supabase handles OAuth providers
+
+# Client Portal URL (for invitation emails)
+CLIENT_URL=http://localhost:3002
+
+# Email Configuration (SMTP2GO)
+# Switch mailers by changing MAIL_MAILER: smtp2go, sendgrid, mailgun, smtp, log
+MAIL_MAILER=smtp2go
+MAIL_FROM_ADDRESS=noreply@yourdomain.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+# SMTP2GO Settings
+SMTP2GO_USERNAME=your-smtp2go-username
+SMTP2GO_API_KEY=your-smtp2go-api-key
+SMTP2GO_HOST=mail.smtp2go.com
+SMTP2GO_PORT=2525
+
+# Alternative: SendGrid (set MAIL_MAILER=sendgrid)
+# SENDGRID_API_KEY=your-sendgrid-api-key
+
+# Alternative: Mailgun (set MAIL_MAILER=mailgun)
+# MAILGUN_USERNAME=your-mailgun-username
+# MAILGUN_PASSWORD=your-mailgun-password
 ```
 
 ## Frontend Apps (.env)

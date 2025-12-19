@@ -28,6 +28,9 @@
 | [design-specification.md](./design-specification.md) | Sidebar layout structure, theme config, shared components |
 | [deployment-config.md](./deployment-config.md) | Deployment configurations |
 | [environment-setup.md](./environment-setup.md) | Local development setup |
+| [coding-guidelines.md](./coding-guidelines.md) | **⚠️ IMPORTANT:** Common pitfalls, PostgreSQL boolean handling, Zustand patterns |
+| [ai-chat.md](./ai-chat.md) | AI Chat system with SSE streaming, API endpoints, frontend integration |
+| [project-management.md](./project-management.md) | Project/Task system, Smart Import, AI suggestions |
 
 ---
 

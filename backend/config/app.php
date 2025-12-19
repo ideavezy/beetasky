@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Client Portal URL
+    |--------------------------------------------------------------------------
+    |
+    | This URL is used for generating links in invitation emails and other
+    | client-facing communications. Set this to the URL of your client portal.
+    |
+    */
+
+    'client_url' => env('CLIENT_URL', env('APP_URL', 'http://localhost')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

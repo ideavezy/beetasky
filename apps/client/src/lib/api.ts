@@ -16,10 +16,24 @@ export function setAuthToken(token: string | null) {
 }
 
 /**
+ * Get the current auth token (for use with fetch/SSE)
+ */
+export function getAuthToken(): string | null {
+  return currentToken
+}
+
+/**
  * Set the current company ID (called by auth store)
  */
 export function setCompanyId(companyId: string | null) {
   currentCompanyId = companyId
+}
+
+/**
+ * Get the current company ID (for use with fetch/SSE)
+ */
+export function getCompanyId(): string | null {
+  return currentCompanyId
 }
 
 /**

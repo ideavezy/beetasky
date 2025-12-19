@@ -6,6 +6,11 @@ export const MODAL_NAMES = {
   CREATE_PROJECT: 'createProject',
   CREATE_TOPIC: 'createTopic',
   CREATE_TASK: 'createTask',
+  CREATE_CONTACT: 'createContact',
+  EDIT_CONTACT: 'editContact',
+  ADD_ACTIVITY: 'addActivity',
+  ALERT: 'alert',
+  LINK_PROJECT: 'linkProject',
 } as const
 
 export type ModalName = typeof MODAL_NAMES[keyof typeof MODAL_NAMES]
@@ -32,12 +37,49 @@ export interface CreateTaskModalProps {
   onSuccess?: (task: any) => void
 }
 
+export interface CreateContactModalProps {
+  companyId?: string
+  onSuccess?: (contact: any) => void
+}
+
+export interface EditContactModalProps {
+  contact: any
+  onSuccess?: (contact: any) => void
+}
+
+export interface AlertModalProps {
+  title: string
+  message: string
+  type?: 'info' | 'success' | 'warning' | 'error'
+  confirmText?: string
+  cancelText?: string
+  showCancel?: boolean
+  onConfirm?: () => void
+}
+
+export interface LinkProjectModalProps {
+  contactId: string
+  contactName: string
+  onSuccess?: (assignedProjects: string[]) => void
+}
+
+export interface AddActivityModalProps {
+  companyId?: string
+  preSelectedContactId?: string
+  onSuccess?: (activity: any) => void
+}
+
 // Union of all modal props
 export type ModalProps = 
   | CreateCompanyModalProps 
   | CreateProjectModalProps 
   | CreateTopicModalProps 
   | CreateTaskModalProps
+  | CreateContactModalProps
+  | EditContactModalProps
+  | AddActivityModalProps
+  | AlertModalProps
+  | LinkProjectModalProps
   | Record<string, any>
 
 interface ModalState {

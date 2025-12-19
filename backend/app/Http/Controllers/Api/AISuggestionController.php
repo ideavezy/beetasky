@@ -91,16 +91,17 @@ class AISuggestionController extends Controller
         $weekFromNow = now()->addDays(7);
 
         // Fetch tasks data
+        // Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares
         $tasksQuery = Task::forCompany($companyId)->whereNull('deleted_at');
         $totalTasks = $tasksQuery->count();
-        $pendingTasks = (clone $tasksQuery)->where('completed', false)->where('status', '!=', 'done')->count();
+        $pendingTasks = (clone $tasksQuery)->whereRaw('completed = false')->where('status', '!=', 'done')->count();
         $overdueTasks = (clone $tasksQuery)
-            ->where('completed', false)
+            ->whereRaw('completed = false')
             ->whereNotNull('due_date')
             ->where('due_date', '<', $now)
             ->count();
         $dueSoonTasks = (clone $tasksQuery)
-            ->where('completed', false)
+            ->whereRaw('completed = false')
             ->whereNotNull('due_date')
             ->where('due_date', '>=', $now)
             ->where('due_date', '<=', $weekFromNow)
@@ -109,7 +110,7 @@ class AISuggestionController extends Controller
         // Fetch sample tasks for AI analysis (prioritize overdue and high priority)
         $sampleTasks = Task::forCompany($companyId)
             ->whereNull('deleted_at')
-            ->where('completed', false)
+            ->whereRaw('completed = false')
             ->with('project:id,name')
             ->orderByRaw("CASE 
                 WHEN due_date < NOW() THEN 1 
@@ -317,8 +318,9 @@ class AISuggestionController extends Controller
             throw new \Exception('Project not found');
         }
 
+        // Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares
         $tasks = \App\Models\Task::where('project_id', $projectId)
-            ->where('completed', false)
+            ->whereRaw('completed = false')
             ->orderByRaw("CASE priority 
                 WHEN 'urgent' THEN 1 
                 WHEN 'high' THEN 2 

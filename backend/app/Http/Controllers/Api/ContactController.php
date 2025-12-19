@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\CompanyContact;
+use App\Models\Project;
+use App\Models\ProjectMember;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -88,6 +90,7 @@ class ContactController extends Controller
                     'first_seen_at' => $cc->first_seen_at,
                     'last_activity_at' => $cc->last_activity_at,
                     'converted_at' => $cc->converted_at,
+                    'has_portal_access' => $contact->hasUserAccount(),
                     'created_at' => $cc->created_at,
                 ];
             }),
@@ -284,6 +287,7 @@ class ContactController extends Controller
                 'last_activity_at' => $companyContact->last_activity_at,
                 'converted_at' => $companyContact->converted_at,
                 'metadata' => $companyContact->metadata,
+                'has_portal_access' => $contact->hasUserAccount(),
                 'created_at' => $contact->created_at,
                 'updated_at' => $contact->updated_at,
             ],
@@ -323,6 +327,7 @@ class ContactController extends Controller
                 // Relationship fields
                 'relation_type' => 'sometimes|string|in:lead,customer,prospect,vendor,partner',
                 'status' => 'nullable|string|in:active,inactive,converted,lost',
+                'source' => 'nullable|string|max:100',
                 'assigned_to' => 'nullable|uuid|exists:users,id',
             ]);
 
@@ -339,7 +344,7 @@ class ContactController extends Controller
 
                 // Update relationship info
                 $relationFields = array_intersect_key($validated, array_flip([
-                    'relation_type', 'status', 'assigned_to'
+                    'relation_type', 'status', 'source', 'assigned_to'
                 ]));
                 
                 if (!empty($relationFields)) {
@@ -400,6 +405,387 @@ class ContactController extends Controller
                 'success' => false,
                 'message' => 'Failed to remove contact',
                 'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Invite a contact to the client portal.
+     */
+    public function invite(Request $request, string $id): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            // Get the contact
+            $contact = Contact::find($id);
+
+            if (!$contact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $id)
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found in this company',
+                ], 404);
+            }
+
+            // Use the invitation service
+            $invitationService = new \App\Services\ContactInvitationService();
+            $result = $invitationService->inviteContact($contact, $companyId);
+
+            if ($result['success']) {
+                // Refresh contact data
+                $contact->refresh();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => $result['message'],
+                    'data' => [
+                        'has_portal_access' => $contact->hasUserAccount(),
+                        'user_id' => $result['user_id'] ?? null,
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'already_invited' => $result['already_invited'] ?? false,
+            ], $result['already_invited'] ?? false ? 409 : 400);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to invite contact',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Resend invitation to a contact.
+     */
+    public function resendInvite(Request $request, string $id): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            $contact = Contact::find($id);
+
+            if (!$contact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $id)
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found in this company',
+                ], 404);
+            }
+
+            $invitationService = new \App\Services\ContactInvitationService();
+            $result = $invitationService->resendInvitation($contact, $companyId);
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message'],
+            ], $result['success'] ? 200 : 400);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to resend invitation',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Get invitation status for a contact.
+     */
+    public function inviteStatus(Request $request, string $id): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            $contact = Contact::with('user')->find($id);
+
+            if (!$contact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $id)
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found in this company',
+                ], 404);
+            }
+
+            $invitationService = new \App\Services\ContactInvitationService();
+            $status = $invitationService->getInvitationStatus($contact);
+
+            return response()->json([
+                'success' => true,
+                'data' => $status,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get invitation status',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Get projects assigned to this contact.
+     */
+    public function projects(Request $request, string $id): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $id)
+                ->with('contact')
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            $contact = $companyContact->contact;
+
+            // If contact has a user account, get their project memberships
+            if ($contact->hasUserAccount()) {
+                $user = $contact->user;
+                
+                $projects = Project::where('company_id', $companyId)
+                    ->whereHas('members', function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->withCount('tasks')
+                    ->get()
+                    ->map(function ($project) {
+                        $completedTasks = $project->tasks()->where('status', 'done')->count();
+                        $totalTasks = $project->tasks_count;
+                        $completionPercentage = $totalTasks > 0 
+                            ? round(($completedTasks / $totalTasks) * 100) 
+                            : 0;
+
+                        return [
+                            'id' => $project->id,
+                            'name' => $project->name,
+                            'status' => $project->status,
+                            'tasks_count' => $totalTasks,
+                            'completion_percentage' => $completionPercentage,
+                        ];
+                    });
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $projects,
+                ]);
+            }
+
+            // Contact has no user account, return empty list
+            return response()->json([
+                'success' => true,
+                'data' => [],
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get contact projects',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign a contact to a project.
+     */
+    public function assignProject(Request $request, string $contactId, string $projectId): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $contactId)
+                ->with('contact')
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            $contact = $companyContact->contact;
+
+            // Check if contact has email (required for project assignment)
+            if (!$contact->email) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact must have an email address to be assigned to projects',
+                ], 400);
+            }
+
+            // Check if contact has a user account
+            if (!$contact->hasUserAccount()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact must be invited to the portal before being assigned to projects',
+                ], 400);
+            }
+
+            // Verify the project belongs to this company
+            $project = Project::where('id', $projectId)
+                ->where('company_id', $companyId)
+                ->first();
+
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project not found',
+                ], 404);
+            }
+
+            $user = $contact->user;
+
+            // Check if already a member
+            $existingMember = ProjectMember::where('project_id', $projectId)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if ($existingMember) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact is already assigned to this project',
+                ], 409);
+            }
+
+            // Add to project as viewer by default
+            ProjectMember::create([
+                'project_id' => $projectId,
+                'user_id' => $user->id,
+                'role' => 'viewer',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Contact assigned to project successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to assign contact to project',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove a contact from a project.
+     */
+    public function unassignProject(Request $request, string $contactId, string $projectId): JsonResponse
+    {
+        $companyId = $request->header('X-Company-ID');
+
+        try {
+            // Verify the contact belongs to this company
+            $companyContact = CompanyContact::where('company_id', $companyId)
+                ->where('contact_id', $contactId)
+                ->with('contact')
+                ->first();
+
+            if (!$companyContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact not found',
+                ], 404);
+            }
+
+            $contact = $companyContact->contact;
+
+            if (!$contact->hasUserAccount()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact does not have a user account',
+                ], 400);
+            }
+
+            // Verify the project belongs to this company
+            $project = Project::where('id', $projectId)
+                ->where('company_id', $companyId)
+                ->first();
+
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project not found',
+                ], 404);
+            }
+
+            $user = $contact->user;
+
+            // Remove from project
+            $deleted = ProjectMember::where('project_id', $projectId)
+                ->where('user_id', $user->id)
+                ->delete();
+
+            if (!$deleted) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact is not assigned to this project',
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Contact removed from project successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove contact from project',
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

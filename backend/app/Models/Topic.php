@@ -104,6 +104,7 @@ class Topic extends Model
 
     /**
      * Get the completion percentage of the topic.
+     * Uses whereRaw for PostgreSQL boolean compatibility with emulated prepares.
      */
     public function getCompletionPercentageAttribute(): float
     {
@@ -113,7 +114,7 @@ class Topic extends Model
             return 0;
         }
         
-        $completedTasks = $this->tasks()->where('completed', true)->count();
+        $completedTasks = $this->tasks()->whereRaw('completed = true')->count();
         
         return round(($completedTasks / $totalTasks) * 100, 1);
     }

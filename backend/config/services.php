@@ -37,6 +37,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email Service Providers
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for various email service providers.
+    | Switch between them by changing MAIL_MAILER in .env
+    |
+    | Supported: smtp2go, sendgrid, mailgun, ses, postmark, resend
+    |
+    */
+
+    'smtp2go' => [
+        'api_key' => env('SMTP2GO_API_KEY'),
+        'username' => env('SMTP2GO_USERNAME'),
+        'host' => env('SMTP2GO_HOST', 'mail.smtp2go.com'),
+        'port' => env('SMTP2GO_PORT', 2525),
+    ],
+
+    'sendgrid' => [
+        'api_key' => env('SENDGRID_API_KEY'),
+    ],
+
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | OAuth Providers (Socialite)
     |--------------------------------------------------------------------------
     */

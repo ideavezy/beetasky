@@ -6,6 +6,11 @@ const CreateCompanyModal = lazy(() => import('./modals/CreateCompanyModal'))
 const CreateProjectModal = lazy(() => import('./modals/CreateProjectModal'))
 const CreateTopicModal = lazy(() => import('./modals/CreateTopicModal'))
 const CreateTaskModal = lazy(() => import('./modals/CreateTaskModal'))
+const CreateContactModal = lazy(() => import('./modals/CreateContactModal'))
+const EditContactModal = lazy(() => import('./modals/EditContactModal'))
+const AddActivityModal = lazy(() => import('./modals/AddActivityModal'))
+const AlertModal = lazy(() => import('./modals/AlertModal'))
+const LinkProjectModal = lazy(() => import('./modals/LinkProjectModal'))
 
 // Loading fallback for modals
 function ModalLoadingFallback() {
@@ -74,6 +79,73 @@ export default function ModalManager() {
             onSuccess={(task) => {
               if (modalProps.onSuccess) {
                 (modalProps.onSuccess as (task: any) => void)(task)
+              }
+              closeModal()
+            }}
+          />
+        )
+      case MODAL_NAMES.CREATE_CONTACT:
+        return (
+          <CreateContactModal
+            companyId={modalProps.companyId as string | undefined}
+            onClose={closeModal}
+            onSuccess={(contact) => {
+              if (modalProps.onSuccess) {
+                (modalProps.onSuccess as (contact: any) => void)(contact)
+              }
+              closeModal()
+            }}
+          />
+        )
+      case MODAL_NAMES.EDIT_CONTACT:
+        return (
+          <EditContactModal
+            contact={modalProps.contact as any}
+            onClose={closeModal}
+            onSuccess={(contact) => {
+              if (modalProps.onSuccess) {
+                (modalProps.onSuccess as (contact: any) => void)(contact)
+              }
+              closeModal()
+            }}
+          />
+        )
+      case MODAL_NAMES.ALERT:
+        return (
+          <AlertModal
+            title={modalProps.title as string}
+            message={modalProps.message as string}
+            type={modalProps.type as 'info' | 'success' | 'warning' | 'error' | undefined}
+            confirmText={modalProps.confirmText as string | undefined}
+            cancelText={modalProps.cancelText as string | undefined}
+            showCancel={modalProps.showCancel as boolean | undefined}
+            onConfirm={modalProps.onConfirm as (() => void) | undefined}
+            onClose={closeModal}
+          />
+        )
+      case MODAL_NAMES.LINK_PROJECT:
+        return (
+          <LinkProjectModal
+            contactId={modalProps.contactId as string}
+            contactName={modalProps.contactName as string}
+            onClose={closeModal}
+            onSuccess={(assignedProjects) => {
+              if (modalProps.onSuccess) {
+                (modalProps.onSuccess as (assignedProjects: string[]) => void)(assignedProjects)
+              }
+              closeModal()
+            }}
+          />
+        )
+      case MODAL_NAMES.ADD_ACTIVITY:
+        return (
+          <AddActivityModal
+            companyId={modalProps.companyId as string | undefined}
+            preSelectedContactId={modalProps.preSelectedContactId as string | undefined}
+            onClose={closeModal}
+            onSuccess={(activity) => {
+              if (modalProps.onSuccess) {
+                (modalProps.onSuccess as (activity: any) => void)(activity)
               }
               closeModal()
             }}

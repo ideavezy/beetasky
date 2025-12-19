@@ -172,11 +172,40 @@ Route::prefix('v1')->middleware('supabase.auth')->group(function () {
     Route::get('/contacts/{id}', [App\Http\Controllers\Api\ContactController::class, 'show']);
     Route::put('/contacts/{id}', [App\Http\Controllers\Api\ContactController::class, 'update']);
     Route::delete('/contacts/{id}', [App\Http\Controllers\Api\ContactController::class, 'destroy']);
+    
+    // Contact Portal Invitation
+    Route::post('/contacts/{id}/invite', [App\Http\Controllers\Api\ContactController::class, 'invite']);
+    Route::post('/contacts/{id}/resend-invite', [App\Http\Controllers\Api\ContactController::class, 'resendInvite']);
+    Route::get('/contacts/{id}/invite-status', [App\Http\Controllers\Api\ContactController::class, 'inviteStatus']);
+
+    // Contact Notes
+    Route::get('/contacts/{contactId}/notes', [App\Http\Controllers\Api\ContactNoteController::class, 'index']);
+    Route::post('/contacts/{contactId}/notes', [App\Http\Controllers\Api\ContactNoteController::class, 'store']);
+    Route::put('/contacts/{contactId}/notes/{noteId}', [App\Http\Controllers\Api\ContactNoteController::class, 'update']);
+    Route::delete('/contacts/{contactId}/notes/{noteId}', [App\Http\Controllers\Api\ContactNoteController::class, 'destroy']);
+
+    // Contact Projects
+    Route::get('/contacts/{contactId}/projects', [App\Http\Controllers\Api\ContactController::class, 'projects']);
+    Route::post('/contacts/{contactId}/projects/{projectId}', [App\Http\Controllers\Api\ContactController::class, 'assignProject']);
+    Route::delete('/contacts/{contactId}/projects/{projectId}', [App\Http\Controllers\Api\ContactController::class, 'unassignProject']);
+
+    // CRM Activities
+    Route::get('/activities', [App\Http\Controllers\Api\ActivityController::class, 'index']);
+    Route::post('/activities', [App\Http\Controllers\Api\ActivityController::class, 'store']);
 
     // AI Suggestions
     Route::get('/ai/dashboard-suggestions', [App\Http\Controllers\Api\AISuggestionController::class, 'dashboardSuggestions']);
     Route::post('/ai/suggestions', [App\Http\Controllers\Api\AISuggestionController::class, 'suggestions']); // Legacy
     Route::post('/ai/execute-action', [App\Http\Controllers\Api\AISuggestionController::class, 'executeAction']);
+
+    // AI Chat (SSE Streaming)
+    Route::prefix('ai/chat')->group(function () {
+        Route::get('/conversations', [App\Http\Controllers\Api\AiChatController::class, 'index']);
+        Route::post('/conversations', [App\Http\Controllers\Api\AiChatController::class, 'createConversation']);
+        Route::get('/conversations/{id}/messages', [App\Http\Controllers\Api\AiChatController::class, 'messages']);
+        Route::delete('/conversations/{id}', [App\Http\Controllers\Api\AiChatController::class, 'destroy']);
+        Route::post('/stream', [App\Http\Controllers\Api\AiChatController::class, 'stream']);
+    });
 
     // User Presets
     Route::get('/user-presets', [App\Http\Controllers\Api\UserPresetController::class, 'show']);
@@ -189,5 +218,33 @@ Route::prefix('v1')->middleware('supabase.auth')->group(function () {
     Route::put('/api-keys/{id}', [App\Http\Controllers\Api\ApiKeyController::class, 'update']);
     Route::delete('/api-keys/{id}', [App\Http\Controllers\Api\ApiKeyController::class, 'destroy']);
     Route::post('/api-keys/{id}/regenerate', [App\Http\Controllers\Api\ApiKeyController::class, 'regenerate']);
+
+    // AI Skills - User endpoints
+    Route::prefix('skills')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\SkillController::class, 'index']);
+        Route::get('/{slug}', [App\Http\Controllers\Api\SkillController::class, 'show']);
+        Route::patch('/{slug}/settings', [App\Http\Controllers\Api\SkillController::class, 'updateSettings']);
+        Route::post('/{slug}/execute', [App\Http\Controllers\Api\SkillController::class, 'execute']);
+        Route::get('/{slug}/history', [App\Http\Controllers\Api\SkillController::class, 'history']);
+    });
+
+    // AI Skills - Admin endpoints (create/update/delete custom skills)
+    Route::prefix('admin/skills')->group(function () {
+        Route::post('/', [App\Http\Controllers\Api\AdminSkillController::class, 'store']);
+        Route::put('/{id}', [App\Http\Controllers\Api\AdminSkillController::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\Api\AdminSkillController::class, 'destroy']);
+    });
+
+    // AI Skill Executions - Logging & Analytics
+    Route::prefix('skill-executions')->group(function () {
+        // User's own execution history
+        Route::get('/my-history', [App\Http\Controllers\Api\SkillExecutionController::class, 'myHistory']);
+        // Admin: list all executions for company
+        Route::get('/', [App\Http\Controllers\Api\SkillExecutionController::class, 'index']);
+        // Admin: execution statistics
+        Route::get('/stats', [App\Http\Controllers\Api\SkillExecutionController::class, 'stats']);
+        // Admin: view specific execution details
+        Route::get('/{id}', [App\Http\Controllers\Api\SkillExecutionController::class, 'show']);
+    });
 });
 

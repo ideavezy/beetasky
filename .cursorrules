@@ -12,6 +12,7 @@ Before starting ANY coding task, you MUST:
 plan/architecture-plan.md    - Tech stack, database schema, folder structure, implementation phases
 plan/ui-requirements.md      - Design philosophy, colors, typography, DaisyUI components, styling rules
 plan/project-management.md   - Project/Task system, database tables, API routes, components
+plan/ai-chat.md              - AI Chat SSE streaming, conversation API, frontend integration
 plan/environment-setup.md    - Environment variables, Supabase setup, development URLs
 plan/deployment-config.md    - Production deployment, CORS, session config, security
 ```
@@ -20,6 +21,7 @@ plan/deployment-config.md    - Production deployment, CORS, session config, secu
 - Creating new features → Read `architecture-plan.md` + `ui-requirements.md`
 - Working on UI/components → Read `ui-requirements.md`
 - Database/API work → Read `architecture-plan.md` + `project-management.md`
+- AI/Chat features → Read `ai-chat.md` + `architecture-plan.md`
 - Setting up environments → Read `environment-setup.md`
 - Deployment tasks → Read `deployment-config.md`
 
@@ -196,3 +198,5 @@ When user asks: "Create a new dashboard component"
 5. **Implement**: Following the design system and patterns
 
 This ensures consistent, well-documented code that fits the project architecture.
+
+

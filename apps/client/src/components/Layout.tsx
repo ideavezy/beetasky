@@ -21,9 +21,14 @@ import {
   MessageCircle,
   Sparkles,
   Zap,
+  RotateCcw,
+  Square,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/auth'
+import { useChatStore } from '../stores/chat'
+import { useChatActions } from '../hooks/useAIStream'
 import AISuggestions from './AISuggestions'
+import ChatMessages from './ChatMessages'
 import CompanySwitcher from './CompanySwitcher'
 
 // Cookie utility functions
@@ -78,7 +83,14 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, signOut, isLoading } = useAuthStore()
+  const { user, company, signOut, isLoading } = useAuthStore()
+  
+  // Check if user is owner of current company
+  const isOwner = company?.pivot?.role_in_company === 'owner'
+  
+  // Chat store and actions
+  const { messages, isStreaming } = useChatStore()
+  const { send, stop, clear } = useChatActions()
   
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [chatMessage, setChatMessage] = useState('')
@@ -91,6 +103,9 @@ export default function Layout({ children }: LayoutProps) {
 
   // State for AI action feedback
   const [aiActionMessage, setAiActionMessage] = useState<string | null>(null)
+  
+  // Determine if we should show chat messages or suggestions
+  const showChatMessages = messages.length > 0
 
   // Clear AI action message after delay
   useEffect(() => {
@@ -110,7 +125,12 @@ export default function Layout({ children }: LayoutProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Get active menu from current path
-  const activeMenu = menuItems.find((item) => location.pathname === item.path)?.id || 'home'
+  // Use startsWith to match nested routes (e.g., /crm/contacts/123 should highlight CRM)
+  const activeMenu = menuItems.find((item) => 
+    item.path === '/dashboard' 
+      ? location.pathname === '/dashboard' 
+      : location.pathname.startsWith(item.path)
+  )?.id || 'home'
 
   // Get user initials
   const userInitials = user
@@ -184,15 +204,25 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [isInputFocused, chatMessage])
 
-  const handleSendMessage = () => {
-    if (chatMessage.trim()) {
-      console.log('Sending message:', chatMessage)
+  const handleSendMessage = async () => {
+    if (chatMessage.trim() && !isStreaming) {
+      const message = chatMessage.trim()
       setChatMessage('')
       // Reset textarea height after sending
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
+      // Send to AI
+      await send(message)
     }
+  }
+
+  const handleStopStreaming = () => {
+    stop()
+  }
+
+  const handleNewChat = () => {
+    clear()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -472,19 +502,43 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold text-base-content">AI Assistant</h3>
-                  <p className="text-xs text-base-content/60">Always ready to help</p>
+                  <p className="text-xs text-base-content/60">
+                    {isStreaming ? 'Thinking...' : 'Always ready to help'}
+                  </p>
                 </div>
               </div>
-              <button
-                onClick={() => setChatSidebarOpen(false)}
-                className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
-                title="Close AI Assistant"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {/* New Chat Button - only show when there are messages */}
+                {showChatMessages && (
+                  <button
+                    onClick={handleNewChat}
+                    className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                    title="New Chat"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+                {/* AI Skills Settings Button - only show for owners */}
+                {isOwner && (
+                  <button
+                    onClick={() => navigate('/skills')}
+                    className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                    title="AI Skills Settings"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setChatSidebarOpen(false)}
+                  className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                  title="Close AI Assistant"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* AI Suggestions Area */}
+            {/* Chat Messages or AI Suggestions Area */}
             <div className="flex-1 overflow-y-auto p-4">
               {/* Action feedback toast */}
               {aiActionMessage && (
@@ -493,8 +547,12 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               )}
 
-              {/* AI Suggestions Component */}
-              <AISuggestions onActionComplete={setAiActionMessage} />
+              {/* Show Chat Messages or AI Suggestions */}
+              {showChatMessages ? (
+                <ChatMessages />
+              ) : (
+                <AISuggestions onActionComplete={setAiActionMessage} />
+              )}
             </div>
 
             {/* Chat Input Area */}
@@ -546,23 +604,33 @@ export default function Layout({ children }: LayoutProps) {
                   style={{ maxHeight: '120px' }}
                 />
 
-                {/* Send Button */}
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!chatMessage.trim()}
-                  className={`p-2 rounded-full flex items-center justify-center transition-all ${
-                    chatMessage.trim()
-                      ? 'bg-primary text-primary-content hover:bg-primary/90'
-                      : 'text-base-content/40 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+                {/* Send or Stop Button */}
+                {isStreaming ? (
+                  <button
+                    onClick={handleStopStreaming}
+                    className="p-2 rounded-full flex items-center justify-center transition-all bg-error text-error-content hover:bg-error/90"
+                    title="Stop generating"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatMessage.trim()}
+                    className={`p-2 rounded-full flex items-center justify-center transition-all ${
+                      chatMessage.trim()
+                        ? 'bg-primary text-primary-content hover:bg-primary/90'
+                        : 'text-base-content/40 cursor-not-allowed'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               
               {/* Keyboard hint */}
               <p className="text-xs text-base-content/40 mt-2 text-center">
-                Press Enter to send, Shift + Enter for new line
+                {isStreaming ? 'AI is responding...' : 'Press Enter to send, Shift + Enter for new line'}
               </p>
             </div>
           </>
@@ -595,18 +663,44 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold text-base-content">AI Assistant</h3>
-                  <p className="text-xs text-base-content/60">Always ready to help</p>
+                  <p className="text-xs text-base-content/60">
+                    {isStreaming ? 'Thinking...' : 'Always ready to help'}
+                  </p>
                 </div>
               </div>
-              <button
-                onClick={() => setChatSidebarOpen(false)}
-                className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {showChatMessages && (
+                  <button
+                    onClick={handleNewChat}
+                    className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                    title="New Chat"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+                {/* AI Skills Settings Button - only show for owners */}
+                {isOwner && (
+                  <button
+                    onClick={() => {
+                      setChatSidebarOpen(false)
+                      navigate('/skills')
+                    }}
+                    className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                    title="AI Skills Settings"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setChatSidebarOpen(false)}
+                  className="p-2 rounded-lg hover:bg-base-300 transition-colors text-base-content/70 hover:text-base-content"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* Mobile AI Suggestions Area */}
+            {/* Mobile Chat Messages or AI Suggestions Area */}
             <div className="flex-1 overflow-y-auto p-4">
               {/* Action feedback toast */}
               {aiActionMessage && (
@@ -615,8 +709,12 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               )}
 
-              {/* AI Suggestions Component */}
-              <AISuggestions onActionComplete={setAiActionMessage} />
+              {/* Show Chat Messages or AI Suggestions */}
+              {showChatMessages ? (
+                <ChatMessages />
+              ) : (
+                <AISuggestions onActionComplete={setAiActionMessage} />
+              )}
             </div>
 
             {/* Mobile Chat Input Area */}
@@ -647,18 +745,28 @@ export default function Layout({ children }: LayoutProps) {
                   style={{ maxHeight: '120px' }}
                 />
 
-                {/* Send Button */}
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!chatMessage.trim()}
-                  className={`p-2 rounded-full flex items-center justify-center transition-all ${
-                    chatMessage.trim()
-                      ? 'bg-primary text-primary-content hover:bg-primary/90'
-                      : 'text-base-content/40 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+                {/* Send or Stop Button */}
+                {isStreaming ? (
+                  <button
+                    onClick={handleStopStreaming}
+                    className="p-2 rounded-full flex items-center justify-center transition-all bg-error text-error-content hover:bg-error/90"
+                    title="Stop generating"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatMessage.trim()}
+                    className={`p-2 rounded-full flex items-center justify-center transition-all ${
+                      chatMessage.trim()
+                        ? 'bg-primary text-primary-content hover:bg-primary/90'
+                        : 'text-base-content/40 cursor-not-allowed'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
