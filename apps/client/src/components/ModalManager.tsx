@@ -11,6 +11,7 @@ const EditContactModal = lazy(() => import('./modals/EditContactModal'))
 const AddActivityModal = lazy(() => import('./modals/AddActivityModal'))
 const AlertModal = lazy(() => import('./modals/AlertModal'))
 const LinkProjectModal = lazy(() => import('./modals/LinkProjectModal'))
+const CreateDealModal = lazy(() => import('./modals/CreateDealModal'))
 
 // Loading fallback for modals
 function ModalLoadingFallback() {
@@ -151,6 +152,8 @@ export default function ModalManager() {
             }}
           />
         )
+      case MODAL_NAMES.CREATE_DEAL:
+        return <CreateDealModal />
       default:
         return null
     }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api, getAuthToken } from '../lib/api'
+import { useFlowStore } from './flow'
 
 // Chat message type
 export interface ChatMessage {
@@ -201,6 +202,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             } else if (data.type === 'error') {
               // Handle error from server
               get().setStreamingError(data.message)
+            } else if (data.type === 'flow_created') {
+              // Flow was created - the flow store will be updated via WebSocket events
+              // For now, we can show the flow info in the chat
+              console.log('Flow created:', data.flow_id, data.title)
             }
           } catch {
             // Skip invalid JSON

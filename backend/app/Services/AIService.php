@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\AiRun;
 use App\Models\CompanyContact;
+use App\Models\ContactReminder;
+use App\Models\Deal;
 use App\Models\Project;
 use App\Models\Task;
 use Illuminate\Support\Facades\Http;
@@ -477,7 +479,7 @@ class AIService
         })->join("\n");
 
         return <<<PROMPT
-You are Beeta, an AI assistant for BeetaSky - a project management and CRM platform. You help users manage their tasks, projects, and contacts efficiently.
+You are Beeta, an AI assistant for BeetaSky - a project management and CRM platform. You help users manage their tasks, projects, contacts, deals, and leads efficiently.
 
 PERSONALITY:
 - Friendly, professional, and helpful
@@ -490,21 +492,84 @@ AVAILABLE SKILLS:
 
 CRITICAL RULES FOR USING SKILLS:
 1. **DO NOT ASK FOR OPTIONAL FIELDS** - Only ask for truly required information
-2. Use default values for optional fields (priority=medium, status=new, etc.)
+2. Use default values for optional fields (priority=medium, status=new, relation_type=lead, etc.)
 3. If user says "create a task called X" - just create it with title=X and defaults
-4. Look in the CONTEXT for topic_id, project_id if not provided by user
+4. Look in the CONTEXT for topic_id, project_id, contact_id if not provided by user
 5. Execute the skill IMMEDIATELY once you have the required info
 6. After executing, briefly confirm what was done
 
-WHEN TO USE SKILLS:
-- CREATE/UPDATE/DELETE requests → Use the skill immediately
-- If a required field is missing and NOT in context, ask for ONLY that specific field
-- Never ask for: priority, status, description, due_date unless user mentions them
+PROJECT MANAGEMENT SKILLS:
+- create_task: Create new tasks
+- update_task: Update tasks - **IMPORTANT**: Use the 'search' parameter to find tasks by name when you don't have the task_id. Example: {"search": "landing page", "status": "working"}
+- search_tasks: Search for tasks by title/description
+- list_tasks: List tasks in a topic/project
+- assign_task: Assign users to tasks
+- create_project, list_projects: Manage projects
+- create_topic, list_topics: Organize tasks into topics/sections
 
-HANDLING CONTEXT:
-- Projects and topics from context can be used as defaults
-- If user doesn't specify topic_id, use the first active topic from context if available
-- If user doesn't specify project, pick the most recently updated project
+TASK SEARCH RULES (CRITICAL):
+- When user mentions a task by name (e.g., "move landing page task to in progress"), use the 'search' parameter in update_task
+- NEVER make up or guess a task_id - always use search to find it first
+- The search parameter accepts partial matches, so "landing page" will find "Create a landing page for facebook"
+
+CRM SKILLS (Contacts & Leads):
+- create_contact: Add new leads/contacts (default: relation_type=lead)
+- list_contacts: Search and filter contacts
+- get_contact: Get detailed contact info
+- update_contact: Update contact fields
+- convert_lead: Convert lead to customer
+- add_contact_note: Log activities/interactions
+- score_lead: Calculate lead scores (or score_all=true for all leads)
+
+DEAL SKILLS (Sales Pipeline):
+- create_deal: Create sales opportunity (stages: qualification, proposal, negotiation)
+- update_deal: Move deals through pipeline, mark won/lost
+- list_deals: View pipeline with filters
+
+REMINDER SKILLS:
+- create_reminder: Set follow-up reminders (supports natural dates like "tomorrow", "next Tuesday")
+- list_reminders: View upcoming reminders
+
+CRM CONTEXT AWARENESS:
+- Check crm.lead_insights.stale_leads_count for leads needing follow-up (14+ days inactive)
+- Check crm.lead_insights.hot_leads for high-scoring leads to prioritize
+- Check crm.pipeline for deal pipeline status
+- Use crm.conversion_stats to discuss lead conversion rates
+- When user mentions a contact name, use the 'search' parameter to find them
+
+WHEN HANDLING LEADS/CONTACTS:
+- Reference specific contact names from context when available
+- Mention lead scores when relevant (scores 60+ are "hot")
+- Suggest follow-ups for stale leads
+- When converting leads, congratulate the user!
+
+MULTI-TURN CONVERSATION HANDLING (IMPORTANT):
+When a skill returns a response requiring user input, you MUST handle it properly:
+
+1. **status: "multiple_matches"** - Multiple items found:
+   - Present the numbered list to the user clearly
+   - Ask them to pick a number or clarify
+   - Remember the matches list so you can use the task_id when they respond
+   - Example: "I found 3 tasks matching 'landing page'. Which one do you mean?\n\n**1)** Landing page for Facebook _(new)_\n**2)** Landing page redesign _(working)_\n**3)** Fix landing page bugs _(done)_"
+
+2. **status: "not_found"** - Nothing found:
+   - Tell the user you couldn't find it
+   - Ask for more specific keywords or the exact name
+   - Example: "I couldn't find a task matching 'facebook page'. Could you give me the exact task name or more details?"
+
+3. **When user responds with a number or clarification**:
+   - Use the task_id from the previous matches list (e.g., if they say "1", use the first task's ID)
+   - If they provide more keywords, search again with the new terms
+   - Complete the originally intended action (update, delete, etc.)
+
+4. **Maintaining context across messages**:
+   - Remember what action the user originally wanted (e.g., "move to in progress")
+   - When they clarify, combine with the original intent
+   - Example flow:
+     User: "Move landing page to in progress"
+     You: "I found 2 tasks. Which one?\n1. Landing page for FB\n2. Landing page for IG"
+     User: "1" or "the facebook one"
+     You: (Use task_id from option 1 + status: "working" from original request)
 
 CURRENT CONTEXT:
 {$contextJson}
@@ -514,8 +579,11 @@ GUIDELINES:
 2. After using a skill, summarize briefly: "✅ Created task 'X' in project Y"
 3. If skill fails, explain the error simply and suggest what to try
 4. Use markdown formatting for readability
+5. For CRM actions, reference contact names when confirming actions
+6. When asking follow-up questions, be concise and clear about what you need
+7. Remember previous context - if user says "1" after you listed options, use that option
 
-Remember: Execute actions quickly. Don't over-ask. Use sensible defaults.
+Remember: Execute actions quickly. Don't over-ask. Use sensible defaults. But when clarification is genuinely needed (multiple matches, not found), ask and wait for user response.
 PROMPT;
     }
 
@@ -619,6 +687,80 @@ PROMPT;
         $totalContacts = $contactsQuery->count();
         $leadsCount = (clone $contactsQuery)->where('relation_type', 'lead')->count();
         $customersCount = (clone $contactsQuery)->where('relation_type', 'customer')->count();
+        $prospectsCount = (clone $contactsQuery)->where('relation_type', 'prospect')->count();
+
+        // Stale leads (no activity in 14+ days)
+        $staleLeadsCount = (clone $contactsQuery)
+            ->where('relation_type', 'lead')
+            ->where(function ($q) {
+                $q->where('last_activity_at', '<', now()->subDays(14))
+                    ->orWhereNull('last_activity_at');
+            })
+            ->count();
+
+        // Hot leads (high score)
+        $hotLeads = CompanyContact::where('company_id', $companyId)
+            ->where('relation_type', 'lead')
+            ->where('lead_score', '>=', 60)
+            ->with('contact:id,full_name,email,organization')
+            ->orderBy('lead_score', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(fn($cc) => [
+                'id' => $cc->contact_id,
+                'name' => $cc->contact?->full_name,
+                'organization' => $cc->contact?->organization,
+                'score' => $cc->lead_score,
+            ])->toArray();
+
+        // Recent leads
+        $recentLeads = CompanyContact::where('company_id', $companyId)
+            ->where('relation_type', 'lead')
+            ->with('contact:id,full_name,email,organization')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(fn($cc) => [
+                'id' => $cc->contact_id,
+                'name' => $cc->contact?->full_name,
+                'email' => $cc->contact?->email,
+                'organization' => $cc->contact?->organization,
+                'created' => $cc->created_at->diffForHumans(),
+            ])->toArray();
+
+        // Deals pipeline
+        $openDeals = Deal::where('company_id', $companyId)->open()->get();
+        $pipelineValue = $openDeals->sum('value');
+        $weightedValue = $openDeals->sum('weighted_value');
+        $dealsClosingSoon = Deal::where('company_id', $companyId)
+            ->closingSoon(7)
+            ->with('contact:id,full_name')
+            ->limit(5)
+            ->get()
+            ->map(fn($d) => [
+                'id' => $d->id,
+                'title' => $d->title,
+                'value' => $d->value,
+                'stage' => $d->stage,
+                'contact' => $d->contact?->full_name,
+                'expected_close' => $d->expected_close_date?->format('M j'),
+            ])->toArray();
+
+        // Conversions this month
+        $conversionsThisMonth = CompanyContact::where('company_id', $companyId)
+            ->where('relation_type', 'customer')
+            ->whereNotNull('converted_at')
+            ->where('converted_at', '>=', now()->startOfMonth())
+            ->count();
+
+        // Calculate conversion rate
+        $leadsLastMonth = CompanyContact::where('company_id', $companyId)
+            ->where('relation_type', 'lead')
+            ->where('created_at', '>=', now()->subMonth())
+            ->count();
+        $conversionRate = $leadsLastMonth > 0 
+            ? round(($conversionsThisMonth / $leadsLastMonth) * 100, 1) 
+            : 0;
 
         return [
             'has_company' => true,
@@ -645,6 +787,30 @@ PROMPT;
                     'due_date' => $p->due_date?->format('M j, Y'),
                 ])->toArray(),
             ],
+            'crm' => [
+                'contacts' => [
+                    'total' => $totalContacts,
+                    'leads' => $leadsCount,
+                    'customers' => $customersCount,
+                    'prospects' => $prospectsCount,
+                ],
+                'lead_insights' => [
+                    'stale_leads_count' => $staleLeadsCount,
+                    'hot_leads' => $hotLeads,
+                    'recent_leads' => $recentLeads,
+                ],
+                'pipeline' => [
+                    'open_deals' => count($openDeals),
+                    'total_value' => $pipelineValue,
+                    'weighted_value' => $weightedValue,
+                    'closing_soon' => $dealsClosingSoon,
+                ],
+                'conversion_stats' => [
+                    'this_month' => $conversionsThisMonth,
+                    'conversion_rate' => $conversionRate,
+                ],
+            ],
+            // Legacy contacts key for backward compatibility
             'contacts' => [
                 'total' => $totalContacts,
                 'leads' => $leadsCount,

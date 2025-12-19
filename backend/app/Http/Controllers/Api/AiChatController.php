@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessFlowStep;
 use App\Models\AiRun;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\AIService;
+use App\Services\AiFlowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -15,13 +17,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AiChatController extends Controller
 {
     protected AIService $aiService;
+    protected AiFlowService $flowService;
 
     // Fixed UUID for the system AI assistant (used as participant_id)
     protected const AI_ASSISTANT_ID = '00000000-0000-0000-0000-000000000001';
 
-    public function __construct(AIService $aiService)
+    public function __construct(AIService $aiService, AiFlowService $flowService)
     {
         $this->aiService = $aiService;
+        $this->flowService = $flowService;
     }
 
     /**
@@ -156,10 +160,12 @@ class AiChatController extends Controller
         $validated = $request->validate([
             'message' => 'required|string|max:10000',
             'conversation_id' => 'nullable|uuid',
+            'enable_flows' => 'nullable|boolean',
         ]);
 
         $userMessage = $validated['message'];
         $conversationId = $validated['conversation_id'] ?? null;
+        $enableFlows = $validated['enable_flows'] ?? true;
 
         // Get or create conversation
         $conversation = null;
@@ -193,6 +199,11 @@ class AiChatController extends Controller
 
         // Update conversation
         $conversation->updateLastMessage($userMessageModel);
+
+        // Check if this should create a flow (multi-step operation)
+        if ($enableFlows && $this->flowService->shouldCreateFlow($userMessage)) {
+            return $this->streamWithFlow($request, $user, $companyId, $conversation, $userMessage);
+        }
 
         // Build context
         $context = $this->aiService->buildChatContext($companyId);
@@ -332,6 +343,123 @@ class AiChatController extends Controller
             ob_flush();
         }
         flush();
+    }
+
+    /**
+     * Stream response with flow-based execution for multi-step operations.
+     */
+    protected function streamWithFlow(
+        Request $request,
+        $user,
+        string $companyId,
+        Conversation $conversation,
+        string $userMessage
+    ): StreamedResponse {
+        return new StreamedResponse(function () use ($user, $companyId, $conversation, $userMessage) {
+            // Disable output buffering
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            // Send start event
+            $this->sendSSE([
+                'type' => 'start',
+                'conversation_id' => $conversation->id,
+                'is_flow' => true,
+            ]);
+
+            try {
+                // Plan the flow
+                $this->sendSSE([
+                    'type' => 'chunk',
+                    'content' => "I'll help you with that. Let me break this down into steps...\n\n",
+                ]);
+
+                $flow = $this->flowService->planFlow(
+                    $userMessage,
+                    $user->id,
+                    $companyId,
+                    $conversation->id
+                );
+
+                // Send flow created notification
+                $this->sendSSE([
+                    'type' => 'flow_created',
+                    'flow_id' => $flow->id,
+                    'title' => $flow->title,
+                    'total_steps' => $flow->total_steps,
+                    'steps' => $flow->steps->map(fn($s) => [
+                        'id' => $s->id,
+                        'position' => $s->position,
+                        'title' => $s->title,
+                        'type' => $s->step_type,
+                        'skill' => $s->skill_slug,
+                        'status' => $s->status,
+                    ])->toArray(),
+                ]);
+
+                // Build a nice message showing the plan
+                $stepsList = $flow->steps->map(fn($s, $i) => ($i + 1) . ". " . $s->title)->join("\n");
+                $planMessage = "**Flow Created: {$flow->title}**\n\n" .
+                    "I've planned the following steps:\n\n{$stepsList}\n\n" .
+                    "Starting execution now...";
+
+                $this->sendSSE([
+                    'type' => 'chunk',
+                    'content' => $planMessage,
+                ]);
+
+                // Save AI message with the plan
+                $aiMessage = Message::create([
+                    'conversation_id' => $conversation->id,
+                    'sender_type' => 'ai_agent',
+                    'sender_id' => self::AI_ASSISTANT_ID,
+                    'role' => 'assistant',
+                    'message_type' => 'chat',
+                    'content' => $planMessage,
+                    'metadata' => [
+                        'flow_id' => $flow->id,
+                        'is_flow_plan' => true,
+                    ],
+                ]);
+
+                $conversation->updateLastMessage($aiMessage);
+
+                // Start processing the flow in background
+                ProcessFlowStep::dispatch($flow->id);
+
+                // Send done event
+                $this->sendSSE([
+                    'type' => 'done',
+                    'message_id' => $aiMessage->id,
+                    'conversation_id' => $conversation->id,
+                    'flow_id' => $flow->id,
+                    'is_flow' => true,
+                ]);
+
+            } catch (\Exception $e) {
+                Log::error('Flow creation failed', [
+                    'error' => $e->getMessage(),
+                    'conversation_id' => $conversation->id,
+                ]);
+
+                $this->sendSSE([
+                    'type' => 'error',
+                    'message' => 'Failed to create execution flow. Falling back to regular processing.',
+                ]);
+
+                // Fall back to regular AI chat
+                $this->sendSSE([
+                    'type' => 'chunk',
+                    'content' => "\n\nLet me try handling this differently...\n\n",
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     /**

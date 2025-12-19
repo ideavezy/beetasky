@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   ChevronLeft,
@@ -19,7 +19,10 @@ import {
   AlertCircle,
   Pencil,
   Trash2,
+  Radio,
 } from 'lucide-react'
+import { useProjectChannel, useProjectPresence } from '../hooks/useEcho'
+import { useEchoStore } from '../stores/echo'
 import {
   DndContext,
   closestCenter,
@@ -827,6 +830,10 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [activeDragTask, setActiveDragTask] = useState<Task | null>(null)
+  const [onlineMembers, setOnlineMembers] = useState<any[]>([])
+  
+  // Real-time connection status
+  const { isConnected } = useEchoStore()
 
   // DnD sensors
   const sensors = useSensors(
@@ -839,6 +846,123 @@ export default function ProjectDetailPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+  
+  // Real-time event handlers for project channel
+  const handleTaskCreated = useCallback((data: any) => {
+    console.log('[Realtime] Task created:', data)
+    // Add task to the appropriate topic
+    if (data.task && data.task.topic_id) {
+      setTopics((prev) =>
+        prev.map((topic) =>
+          topic.id === data.task.topic_id
+            ? {
+                ...topic,
+                tasks: [
+                  ...topic.tasks.filter(t => t.id !== data.task.id), // Prevent duplicates
+                  {
+                    id: data.task.id,
+                    title: data.task.title,
+                    description: data.task.description,
+                    status: data.task.status || 'new',
+                    priority: data.task.priority || 'medium',
+                    completed: data.task.completed || false,
+                    due_date: data.task.due_date,
+                    order: data.task.order || 0,
+                    assignees: data.task.assignees || [],
+                  },
+                ],
+              }
+            : topic
+        )
+      )
+    }
+  }, [])
+  
+  const handleTaskUpdated = useCallback((data: any) => {
+    console.log('[Realtime] Task updated:', data)
+    if (data.task) {
+      setTopics((prev) =>
+        prev.map((topic) => ({
+          ...topic,
+          tasks: topic.tasks.map((task) =>
+            task.id === data.task.id
+              ? { ...task, ...data.task }
+              : task
+          ),
+        }))
+      )
+      // Update selected task if it's the one being updated
+      if (selectedTask?.id === data.task.id) {
+        setSelectedTask((prev) => prev ? { ...prev, ...data.task } : null)
+      }
+    }
+  }, [selectedTask?.id])
+  
+  const handleTaskDeleted = useCallback((data: any) => {
+    console.log('[Realtime] Task deleted:', data)
+    if (data.task_id) {
+      setTopics((prev) =>
+        prev.map((topic) => ({
+          ...topic,
+          tasks: topic.tasks.filter((task) => task.id !== data.task_id),
+        }))
+      )
+      // Close drawer if the deleted task was selected
+      if (selectedTask?.id === data.task_id) {
+        setSelectedTask(null)
+      }
+    }
+  }, [selectedTask?.id])
+  
+  const handleTopicUpdated = useCallback((data: any) => {
+    console.log('[Realtime] Topic updated:', data)
+    if (data.topic) {
+      if (data.action === 'deleted') {
+        setTopics((prev) => prev.filter((t) => t.id !== data.topic.id))
+      } else {
+        setTopics((prev) =>
+          prev.map((topic) =>
+            topic.id === data.topic.id
+              ? { ...topic, ...data.topic }
+              : topic
+          )
+        )
+      }
+    }
+  }, [])
+  
+  const handleCommentAdded = useCallback((data: any) => {
+    console.log('[Realtime] Comment added:', data)
+    // Update comment count for the task
+    if (data.task_id) {
+      setTopics((prev) =>
+        prev.map((topic) => ({
+          ...topic,
+          tasks: topic.tasks.map((task) =>
+            task.id === data.task_id
+              ? { ...task, comments_count: (task.comments_count || 0) + 1 }
+              : task
+          ),
+        }))
+      )
+    }
+  }, [])
+  
+  // Subscribe to project channel for real-time updates
+  useProjectChannel(id || null, {
+    onTaskCreated: handleTaskCreated,
+    onTaskUpdated: handleTaskUpdated,
+    onTaskDeleted: handleTaskDeleted,
+    onTopicUpdated: handleTopicUpdated,
+    onCommentAdded: handleCommentAdded,
+  })
+  
+  // Subscribe to presence channel to see who's viewing the project
+  useProjectPresence(id || null, {
+    onMembersChange: (members) => {
+      setOnlineMembers(members)
+    },
+  })
 
   // Handle toggle task completion
   const handleToggleTaskComplete = async (taskId: string, completed: boolean) => {
@@ -1421,13 +1545,19 @@ export default function ProjectDetailPage() {
                   <div className="flex -space-x-2">
                     {project.members.slice(0, 4).map((member) => {
                       const memberName = `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'User'
+                      const isOnline = onlineMembers.some(m => m.id === member.id)
                       return (
                         <div
                           key={member.id}
-                          className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary ring-2 ring-base-100"
-                          title={memberName}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ring-2 ring-base-100 relative ${
+                            isOnline ? 'bg-success/20 text-success' : 'bg-primary/20 text-primary'
+                          }`}
+                          title={`${memberName}${isOnline ? ' (online)' : ''}`}
                         >
                           {memberName.charAt(0)}
+                          {isOnline && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full ring-2 ring-base-100" />
+                          )}
                         </div>
                       )
                     })}
@@ -1439,6 +1569,12 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
               )}
+              
+              {/* Real-time connection indicator */}
+              <div className="flex items-center gap-1" title={isConnected ? 'Live updates enabled' : 'Connecting...'}>
+                <Radio className={`w-4 h-4 ${isConnected ? 'text-success animate-pulse' : 'text-base-content/40'}`} />
+                {isConnected && <span className="text-xs text-success">Live</span>}
+              </div>
             </div>
           </div>
         </div>

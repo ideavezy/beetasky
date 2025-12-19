@@ -1,5 +1,6 @@
 import { useEffect, ReactNode } from 'react'
 import { useAuthStore } from '../stores/auth'
+import { useEchoConnection } from '../hooks/useEcho'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -7,6 +8,15 @@ interface AuthProviderProps {
 
 // Track if we've already started initialization (outside of React to survive re-renders)
 let initializationStarted = false
+
+/**
+ * EchoConnectionManager - manages WebSocket connection lifecycle
+ * This is a separate component to use hooks properly
+ */
+function EchoConnectionManager() {
+  useEchoConnection()
+  return null
+}
 
 /**
  * AuthProvider initializes the authentication state on app load.
@@ -27,6 +37,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [initialize])
 
   // Render children immediately - guards will handle loading states
-  return <>{children}</>
+  return (
+    <>
+      <EchoConnectionManager />
+      {children}
+    </>
+  )
 }
 

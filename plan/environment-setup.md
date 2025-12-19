@@ -41,19 +41,20 @@ SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 
-# Redis (Railway)
+# Redis (Railway) - Local Development uses public proxy
 REDIS_CLIENT=phpredis
-REDIS_HOST=your-redis-host.railway.app
+REDIS_HOST=gondola.proxy.rlwy.net
+REDIS_PORT=14719
 REDIS_PASSWORD=your-redis-password
-REDIS_PORT=6379
+REDIS_USERNAME=default
 
-# Or use Redis URL format:
-# REDIS_URL=redis://default:password@host:port
+# Or use Redis URL format (for local dev - public proxy):
+# REDIS_URL=redis://default:password@gondola.proxy.rlwy.net:14719
 
-# Cache & Queue
+# Cache & Queue - Options: redis, database, file
 CACHE_STORE=redis
 QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
+SESSION_DRIVER=database
 
 # Sanctum (SPA authentication) - All frontend app domains
 SANCTUM_STATEFUL_DOMAINS=localhost:3000,localhost:3001,localhost:3002,localhost
@@ -117,15 +118,11 @@ Each frontend app has its own `.env` file with app-specific configuration.
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-# Soketi/Pusher WebSocket Configuration
-VITE_PUSHER_APP_KEY=your-soketi-app-key
-VITE_PUSHER_HOST=your-soketi-host.railway.app
-VITE_PUSHER_PORT=443
-VITE_PUSHER_SCHEME=https
-VITE_PUSHER_APP_CLUSTER=mt1
-
 # API Configuration
 VITE_API_URL=http://localhost:8000
+
+# Note: WebSocket configuration is fetched from the backend API
+# The portal calls /api/config/pusher to get Soketi connection details
 ```
 
 ### Client App (`apps/client/.env`)
@@ -135,15 +132,11 @@ VITE_API_URL=http://localhost:8000
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-# Soketi/Pusher WebSocket Configuration
-VITE_PUSHER_APP_KEY=your-soketi-app-key
-VITE_PUSHER_HOST=your-soketi-host.railway.app
-VITE_PUSHER_PORT=443
-VITE_PUSHER_SCHEME=https
-VITE_PUSHER_APP_CLUSTER=mt1
-
 # API Configuration
 VITE_API_URL=http://localhost:8000
+
+# Note: WebSocket configuration is fetched from the backend API
+# The client calls /api/config/pusher to get Soketi connection details
 ```
 
 ### Marketing App (`apps/marketing/.env.local`)
@@ -169,15 +162,46 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ## Railway Redis Setup
 
+### Creating Redis on Railway
+
 1. Go to [railway.app](https://railway.app)
-2. Create a new project
+2. Create a new project or use existing Beemud project
 3. Add Redis service (+ New → Database → Redis)
 4. Go to Redis service → Variables tab
-5. Copy the connection details:
-   - `REDIS_HOST`: From `REDISHOST` variable
-   - `REDIS_PASSWORD`: From `REDISPASSWORD` variable
-   - `REDIS_PORT`: From `REDISPORT` variable (usually 6379)
-   - Or use `REDIS_URL`: Full connection string
+
+### Connection Details (Beemud Project)
+
+| Variable | Local Development | Production (Railway) |
+|----------|-------------------|----------------------|
+| `REDIS_HOST` | `gondola.proxy.rlwy.net` | `redis.railway.internal` |
+| `REDIS_PORT` | `14719` | `6379` |
+| `REDIS_PASSWORD` | (from Railway variables) | `${{Redis.REDIS_PASSWORD}}` |
+| `REDIS_USERNAME` | `default` | `default` |
+
+### Local Development
+
+For local development, use the **public proxy** endpoint:
+
+```env
+REDIS_HOST=gondola.proxy.rlwy.net
+REDIS_PORT=14719
+REDIS_PASSWORD=your-redis-password
+REDIS_USERNAME=default
+```
+
+### Production (Railway Backend)
+
+For production services running on Railway, use the **internal network** (faster, no external traffic):
+
+```env
+REDIS_HOST=redis.railway.internal
+REDIS_PORT=6379
+REDIS_PASSWORD=${{Redis.REDIS_PASSWORD}}
+REDIS_USERNAME=default
+```
+
+Or use variable references in Railway:
+- `REDIS_URL=${{Redis.REDIS_URL}}`
 
 ## Railway Soketi Setup
 

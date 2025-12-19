@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CompanyContact;
+use App\Models\Deal;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\AIService;
@@ -132,6 +133,27 @@ class AISuggestionController extends Controller
         $leadsCount = (clone $contactsQuery)->where('relation_type', 'lead')->count();
         $customersCount = (clone $contactsQuery)->where('relation_type', 'customer')->count();
 
+        // CRM: Stale leads (no activity in 14+ days)
+        $staleLeadsCount = (clone $contactsQuery)
+            ->where('relation_type', 'lead')
+            ->where(function ($q) {
+                $q->where('last_activity_at', '<', now()->subDays(14))
+                    ->orWhereNull('last_activity_at');
+            })
+            ->count();
+
+        // CRM: Conversions this month
+        $conversionsThisMonth = (clone $contactsQuery)
+            ->where('relation_type', 'customer')
+            ->whereNotNull('converted_at')
+            ->where('converted_at', '>=', now()->startOfMonth())
+            ->count();
+
+        // CRM: Deal pipeline
+        $openDeals = Deal::where('company_id', $companyId)->open()->get();
+        $pipelineValue = $openDeals->sum('value');
+        $dealsClosingSoon = Deal::where('company_id', $companyId)->closingSoon(7)->count();
+
         return [
             'has_company' => true,
             'tasks' => [
@@ -148,6 +170,13 @@ class AISuggestionController extends Controller
                 'total' => $totalContacts,
                 'leads' => $leadsCount,
                 'customers' => $customersCount,
+            ],
+            'crm' => [
+                'stale_leads' => $staleLeadsCount,
+                'conversions_this_month' => $conversionsThisMonth,
+                'pipeline_value' => $pipelineValue,
+                'deals_closing_soon' => $dealsClosingSoon,
+                'open_deals' => count($openDeals),
             ],
             'tasks_sample' => $sampleTasks->map(fn ($t) => [
                 'id' => $t->id,

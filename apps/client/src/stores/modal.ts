@@ -11,6 +11,7 @@ export const MODAL_NAMES = {
   ADD_ACTIVITY: 'addActivity',
   ALERT: 'alert',
   LINK_PROJECT: 'linkProject',
+  CREATE_DEAL: 'createDeal',
 } as const
 
 export type ModalName = typeof MODAL_NAMES[keyof typeof MODAL_NAMES]
@@ -69,6 +70,12 @@ export interface AddActivityModalProps {
   onSuccess?: (activity: any) => void
 }
 
+export interface CreateDealModalProps {
+  contactId?: string
+  contactName?: string
+  onSuccess?: (deal: any) => void
+}
+
 // Union of all modal props
 export type ModalProps = 
   | CreateCompanyModalProps 
@@ -80,6 +87,7 @@ export type ModalProps =
   | AddActivityModalProps
   | AlertModalProps
   | LinkProjectModalProps
+  | CreateDealModalProps
   | Record<string, any>
 
 interface ModalState {

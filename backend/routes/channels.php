@@ -78,3 +78,15 @@ Broadcast::channel('presence.project.{projectId}', function (User $user, string 
     }
     return false;
 });
+
+// User private channel for flow events and notifications
+Broadcast::channel('user.{userId}', function (User $user, string $userId) {
+    return $user->id === $userId;
+});
+
+// Flow channel - user must own the flow
+Broadcast::channel('flow.{flowId}', function (User $user, string $flowId) {
+    return \App\Models\AiFlowQueue::where('id', $flowId)
+        ->where('user_id', $user->id)
+        ->exists();
+});

@@ -10,4 +10,5 @@ export { default as EditContactModal } from './EditContactModal'
 export { default as AddActivityModal } from './AddActivityModal'
 export { default as AlertModal } from './AlertModal'
 export { default as LinkProjectModal } from './LinkProjectModal'
+export { default as FlowPromptModal } from './FlowPromptModal'
 

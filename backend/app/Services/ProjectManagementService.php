@@ -581,6 +581,98 @@ class ProjectManagementService
     }
 
     /**
+     * Search tasks across all projects by title or description.
+     */
+    public function searchTasks(User $user, string $companyId, string $search, array $filters = []): array
+    {
+        $query = Task::forCompany($companyId)
+            ->with(['topic', 'project', 'assignedUsers'])
+            ->withCount('comments')
+            ->whereNull('deleted_at');
+
+        // Search by title or description
+        $query->where(function ($q) use ($search) {
+            $q->where('title', 'ilike', '%' . $search . '%')
+                ->orWhere('description', 'ilike', '%' . $search . '%');
+        });
+
+        // Optional filters
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        if (!empty($filters['priority'])) {
+            $query->where('priority', $filters['priority']);
+        }
+
+        if (isset($filters['completed'])) {
+            $query->where('completed', $filters['completed']);
+        }
+
+        $tasks = $query
+            ->orderByRaw("CASE WHEN title ILIKE ? THEN 0 ELSE 1 END", ['%' . $search . '%'])
+            ->orderBy('updated_at', 'desc')
+            ->limit($filters['limit'] ?? 20)
+            ->get()
+            ->map(fn($task) => [
+                'id' => $task->id,
+                'title' => $task->title,
+                'description' => $task->description ? substr($task->description, 0, 100) . '...' : null,
+                'status' => $task->status,
+                'priority' => $task->priority,
+                'completed' => $task->completed,
+                'due_date' => $task->due_date?->format('Y-m-d'),
+                'topic_id' => $task->topic_id,
+                'topic_name' => $task->topic?->name,
+                'project_id' => $task->project_id,
+                'project_name' => $task->project?->name,
+                'assignees' => $task->assignedUsers->map(fn($u) => $u->first_name)->implode(', '),
+            ]);
+
+        return [
+            'success' => true,
+            'data' => $tasks->toArray(),
+            'total' => $tasks->count(),
+            'search' => $search,
+        ];
+    }
+
+    /**
+     * Find a task by title (fuzzy match) and optionally update it.
+     */
+    public function findTaskByTitle(User $user, string $companyId, string $title): array
+    {
+        $task = Task::forCompany($companyId)
+            ->with(['topic', 'project'])
+            ->whereNull('deleted_at')
+            ->where('title', 'ilike', '%' . $title . '%')
+            ->orderByRaw("CASE WHEN title ILIKE ? THEN 0 ELSE 1 END", [$title])
+            ->first();
+
+        if (!$task) {
+            return [
+                'success' => false,
+                'error' => "No task found matching '{$title}'",
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                'id' => $task->id,
+                'title' => $task->title,
+                'status' => $task->status,
+                'priority' => $task->priority,
+                'completed' => $task->completed,
+                'topic_id' => $task->topic_id,
+                'topic_name' => $task->topic?->name,
+                'project_id' => $task->project_id,
+                'project_name' => $task->project?->name,
+            ],
+        ];
+    }
+
+    /**
      * Get a specific task.
      */
     public function getTask(User $user, string $companyId, string $taskId): array
@@ -886,6 +978,7 @@ class ProjectManagementService
         $comment = TaskComment::create([
             'task_id' => $taskId,
             'user_id' => $user->id,
+            'company_id' => $companyId,
             'content' => $data['content'],
             'is_internal' => $data['is_internal'] ?? false,
         ]);

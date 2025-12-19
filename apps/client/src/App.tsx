@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './components/AuthProvider'
 import { AuthGuard, GuestGuard, OwnerGuard } from './components/AuthGuard'
 import ModalManager from './components/ModalManager'
+import FlowManager from './components/FlowManager'
 import AuthPage from './pages/AuthPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
@@ -11,6 +12,7 @@ import WorkExecutionPage from './pages/WorkExecutionPage'
 import MyAccountPage from './pages/MyAccountPage'
 import CRMPage from './pages/CRMPage'
 import ContactDetailPage from './pages/ContactDetailPage'
+import DealsPage from './pages/DealsPage'
 import SkillsPage from './pages/SkillsPage'
 
 function App() {
@@ -108,6 +110,14 @@ function App() {
             }
           />
           <Route
+            path="/deals"
+            element={
+              <AuthGuard>
+                <DealsPage />
+              </AuthGuard>
+            }
+          />
+          <Route
             path="/skills"
             element={
               <OwnerGuard>
@@ -143,6 +153,9 @@ function App() {
         
         {/* Global Modal Manager - renders modals at app root level */}
         <ModalManager />
+        
+        {/* Global Flow Manager - renders flow prompt modals */}
+        <FlowManager />
       </AuthProvider>
     </BrowserRouter>
   )

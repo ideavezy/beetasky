@@ -193,6 +193,15 @@ Route::prefix('v1')->middleware('supabase.auth')->group(function () {
     Route::get('/activities', [App\Http\Controllers\Api\ActivityController::class, 'index']);
     Route::post('/activities', [App\Http\Controllers\Api\ActivityController::class, 'store']);
 
+    // Deals (Sales Pipeline)
+    Route::get('/deals', [App\Http\Controllers\Api\DealController::class, 'index']);
+    Route::get('/deals/stats', [App\Http\Controllers\Api\DealController::class, 'stats']);
+    Route::post('/deals', [App\Http\Controllers\Api\DealController::class, 'store']);
+    Route::get('/deals/{id}', [App\Http\Controllers\Api\DealController::class, 'show']);
+    Route::patch('/deals/{id}', [App\Http\Controllers\Api\DealController::class, 'update']);
+    Route::put('/deals/{id}', [App\Http\Controllers\Api\DealController::class, 'update']);
+    Route::delete('/deals/{id}', [App\Http\Controllers\Api\DealController::class, 'destroy']);
+
     // AI Suggestions
     Route::get('/ai/dashboard-suggestions', [App\Http\Controllers\Api\AISuggestionController::class, 'dashboardSuggestions']);
     Route::post('/ai/suggestions', [App\Http\Controllers\Api\AISuggestionController::class, 'suggestions']); // Legacy
@@ -245,6 +254,19 @@ Route::prefix('v1')->middleware('supabase.auth')->group(function () {
         Route::get('/stats', [App\Http\Controllers\Api\SkillExecutionController::class, 'stats']);
         // Admin: view specific execution details
         Route::get('/{id}', [App\Http\Controllers\Api\SkillExecutionController::class, 'show']);
+    });
+
+    // AI Flows - Multi-step workflow execution
+    Route::prefix('ai/flows')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\AiFlowController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\AiFlowController::class, 'store']);
+        Route::get('/{flowId}', [App\Http\Controllers\Api\AiFlowController::class, 'show']);
+        Route::post('/{flowId}/cancel', [App\Http\Controllers\Api\AiFlowController::class, 'cancel']);
+        Route::post('/{flowId}/retry', [App\Http\Controllers\Api\AiFlowController::class, 'retry']);
+        Route::get('/{flowId}/logs', [App\Http\Controllers\Api\AiFlowController::class, 'logs']);
+        Route::post('/{flowId}/steps/{stepId}/respond', [App\Http\Controllers\Api\AiFlowController::class, 'respond']);
+        Route::post('/{flowId}/steps', [App\Http\Controllers\Api\AiFlowController::class, 'insertStep']);
+        Route::delete('/{flowId}/steps/{stepId}', [App\Http\Controllers\Api\AiFlowController::class, 'deleteStep']);
     });
 });
 
