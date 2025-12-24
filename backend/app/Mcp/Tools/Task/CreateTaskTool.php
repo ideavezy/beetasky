@@ -50,8 +50,8 @@ class CreateTaskTool extends Tool
                 ],
                 'status' => [
                     'type' => 'string',
-                    'description' => 'Initial task status (default: new)',
-                    'enum' => ['new', 'working', 'question', 'on_hold', 'in_review', 'done', 'canceled'],
+                    'description' => 'Initial task status (default: todo)',
+                    'enum' => ['backlog', 'todo', 'in_progress', 'on_hold', 'in_review', 'done'],
                 ],
                 'priority' => [
                     'type' => 'string',
@@ -98,7 +98,7 @@ class CreateTaskTool extends Tool
             'title' => $title,
             'description' => $request->input('description'),
             'content' => $request->input('content'),
-            'status' => $request->input('status') ?? 'new',
+            'status' => $request->input('status') ?? 'todo',
             'priority' => $request->input('priority') ?? 'medium',
             'due_date' => $request->input('due_date'),
         ];

@@ -38,20 +38,16 @@ const markdownComponents: Components = {
   ol: ({ children }) => (
     <ol className="ml-1 mb-2 space-y-1 last:mb-0 counter-reset-item">{children}</ol>
   ),
-  li: ({ children, ...props }) => {
-    // Determine if this is an ordered list item by checking the parent
-    const node = props.node as any
-    const isOrdered = node?.parent?.tagName === 'ol' || 
-      (node?.position && node?.parent?.ordered === true)
-    
-    // Get the index for ordered lists
-    const siblings = node?.parent?.children?.filter((c: any) => c.type === 'element' && c.tagName === 'li') || []
-    const index = siblings.indexOf(node) + 1
+  li: ({ children, ordered, index, ...props }) => {
+    // react-markdown passes 'ordered' (boolean) and 'index' (number) props to li elements
+    // 'ordered' is true when inside an <ol>, false when inside a <ul>
+    // 'index' is the 0-based index of the list item
+    const itemNumber = (index ?? 0) + 1
 
     return (
       <li className="flex items-start gap-2">
-        <span className="text-primary flex-shrink-0 min-w-[1rem]">
-          {isOrdered ? `${index}.` : '•'}
+        <span className="text-primary flex-shrink-0 min-w-[1.25rem] font-medium">
+          {ordered ? `${itemNumber})` : '•'}
         </span>
         <span className="flex-1">{children}</span>
       </li>

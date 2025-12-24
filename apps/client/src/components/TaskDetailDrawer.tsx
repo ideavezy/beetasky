@@ -18,6 +18,9 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { api } from '../lib/api'
+import FileUploadButton from './FileUploadButton'
+import AttachmentList, { type Attachment } from './AttachmentList'
+import { type UploadedFile } from '../hooks/useFileUpload'
 
 interface TaskComment {
   id: string
@@ -88,13 +91,12 @@ interface TaskDetailDrawerProps {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'new', label: 'New', color: 'badge-warning' },
-  { value: 'working', label: 'Working', color: 'badge-info' },
-  { value: 'question', label: 'Question', color: 'badge-secondary' },
-  { value: 'on_hold', label: 'On Hold', color: 'badge-neutral' },
-  { value: 'in_review', label: 'In Review', color: 'badge-accent' },
+  { value: 'backlog', label: 'Backlog', color: 'badge-ghost' },
+  { value: 'todo', label: 'To Do', color: 'badge-warning' },
+  { value: 'in_progress', label: 'In Progress', color: 'badge-info' },
+  { value: 'on_hold', label: 'On Hold', color: 'badge-error' },
+  { value: 'in_review', label: 'Review', color: 'badge-accent' },
   { value: 'done', label: 'Done', color: 'badge-success' },
-  { value: 'canceled', label: 'Canceled', color: 'badge-error' },
 ]
 
 const PRIORITY_OPTIONS = [
@@ -118,7 +120,7 @@ export default function TaskDetailDrawer({
   const [taskData, setTaskData] = useState({
     title: '',
     description: '',
-    status: 'new',
+    status: 'todo',
     priority: 'medium',
     due_date: '',
   })
@@ -128,6 +130,7 @@ export default function TaskDetailDrawer({
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentContent, setCommentContent] = useState('')
   const [commentSubmitting, setCommentSubmitting] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<UploadedFile[]>([])
   
   // Activity state
   const [activities, setActivities] = useState<TaskActivity[]>([])
@@ -147,7 +150,7 @@ export default function TaskDetailDrawer({
       setTaskData({
         title: task.title || '',
         description: task.description || '',
-        status: task.status || 'new',
+        status: task.status || 'todo',
         priority: task.priority || 'medium',
         due_date: task.due_date || '',
       })
@@ -246,13 +249,19 @@ export default function TaskDetailDrawer({
     try {
       const response = await api.post(`/api/v1/tasks/${task.id}/comments`, {
         content: commentContent.trim(),
-        attachments: [],
+        attachments: pendingAttachments.map(file => ({
+          filename: file.filename,
+          path: file.path,
+          mime_type: file.mime_type,
+          size: file.size,
+        })),
       })
       
       if (response.data.success) {
         // Add the new comment to the top of the list
         setComments((prev) => [response.data.comment, ...prev])
         setCommentContent('')
+        setPendingAttachments([])
       }
     } catch (error) {
       console.error('Failed to post comment:', error)
@@ -497,10 +506,38 @@ export default function TaskDetailDrawer({
                     className="textarea textarea-ghost w-full resize-none bg-transparent p-0 min-h-[60px] focus:outline-none"
                     rows={2}
                   />
+                  
+                  {/* File Upload Preview */}
+                  {pendingAttachments.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-base-300">
+                      <AttachmentList
+                        attachments={pendingAttachments.map(file => ({
+                          id: file.path,
+                          filename: file.filename,
+                          mime_type: file.mime_type,
+                          size: file.size,
+                          path: file.path,
+                          public_url: file.public_url,
+                        }))}
+                        canDelete={true}
+                        onDelete={(id) => {
+                          setPendingAttachments(prev => prev.filter(f => f.path !== id))
+                        }}
+                        compact={true}
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between items-center mt-2">
-                    <button className="btn btn-ghost btn-sm" title="Attach file">
-                      <Paperclip className="w-4 h-4" />
-                    </button>
+                    <FileUploadButton
+                      entityType="task_comment"
+                      entityId={task?.id}
+                      multiple={true}
+                      onUploadComplete={(files) => {
+                        setPendingAttachments(prev => [...prev, ...files])
+                      }}
+                      disabled={commentSubmitting}
+                    />
                     <button
                       onClick={handlePostComment}
                       disabled={!commentContent.trim() || commentSubmitting}
@@ -557,28 +594,17 @@ export default function TaskDetailDrawer({
                         
                         {/* Attachments */}
                         {comment.attachments && comment.attachments.length > 0 && (
-                          <div className="mt-3 pt-2 border-t border-base-300">
-                            <div className="text-xs font-medium mb-2 text-base-content/70">
-                              Attachments
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {comment.attachments.map((file) => (
-                                <a
-                                  key={file.id}
-                                  href={file.path}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-2 bg-base-100 rounded-lg px-3 py-2 text-sm hover:bg-base-300 transition-colors"
-                                >
-                                  {file.mime_type?.startsWith('image/') ? (
-                                    <ImageIcon className="w-4 h-4 text-primary" />
-                                  ) : (
-                                    <FileIcon className="w-4 h-4 text-primary" />
-                                  )}
-                                  <span className="truncate max-w-[120px]">{file.filename}</span>
-                                </a>
-                              ))}
-                            </div>
+                          <div className="mt-3 pt-3 border-t border-base-300">
+                            <AttachmentList
+                              attachments={comment.attachments.map(file => ({
+                                id: file.id,
+                                filename: file.filename,
+                                mime_type: file.mime_type,
+                                size: file.size,
+                                path: file.path,
+                              }))}
+                              compact={true}
+                            />
                           </div>
                         )}
                       </div>
@@ -884,16 +910,28 @@ export default function TaskDetailDrawer({
       
       {/* Assign User Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowAssignModal(false)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowAssignModal(false)
+            }}
           />
-          <div className="relative bg-base-200 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-in fade-in zoom-in-95 duration-200">
+          <div 
+            className="relative bg-base-200 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-4 border-b border-base-300">
               <h3 className="text-lg font-semibold">Assign Team Member</h3>
               <button
-                onClick={() => setShowAssignModal(false)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowAssignModal(false)
+                }}
                 className="p-2 rounded-lg hover:bg-base-300 transition-colors"
               >
                 <X className="w-5 h-5" />
