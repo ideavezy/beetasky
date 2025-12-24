@@ -173,7 +173,7 @@ class McpToolExecutor
 
         // Set default status if not provided
         if (!isset($params['status'])) {
-            $params['status'] = 'new';
+            $params['status'] = 'todo';
         }
 
         return $this->projectService->createTask($user, $companyId, $topicId, $params);

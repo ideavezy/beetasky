@@ -38,7 +38,7 @@ class SearchTasksTool extends Tool
                 'status' => [
                     'type' => 'string',
                     'description' => 'Filter by status',
-                    'enum' => ['new', 'working', 'question', 'on_hold', 'in_review', 'done', 'canceled'],
+                    'enum' => ['backlog', 'todo', 'in_progress', 'on_hold', 'in_review', 'done'],
                 ],
                 'priority' => [
                     'type' => 'string',
@@ -117,13 +117,13 @@ class SearchTasksTool extends Tool
         // Build human-readable list with clear number formatting
         $taskListText = implode("\n", array_map(function($t) {
             $statusEmoji = match ($t['status']) {
-                'new' => '📋',
-                'working' => '🔄',
-                'done' => '✅',
-                'in_review' => '👀',
+                'backlog' => '📋',
+                'todo' => '📝',
+                'in_progress' => '🔄',
                 'on_hold' => '⏸️',
-                'canceled' => '❌',
-                default => '📝',
+                'in_review' => '👀',
+                'done' => '✅',
+                default => '📋',
             };
             return "**{$t['number']})** {$statusEmoji} {$t['title']} _({$t['status']})_ - {$t['project']}";
         }, $formattedTasks));

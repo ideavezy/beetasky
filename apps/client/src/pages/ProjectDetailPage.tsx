@@ -49,6 +49,7 @@ import TaskDetailDrawer from '../components/TaskDetailDrawer'
 import { api } from '../lib/api'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore, MODAL_NAMES } from '../stores/modal'
+import { useRefreshStore } from '../stores/refresh'
 
 type ViewMode = 'list' | 'kanban'
 
@@ -139,14 +140,16 @@ const getStatusBadge = (status: string) => {
   switch (status) {
     case 'done':
       return 'badge-success'
-    case 'working':
+    case 'in_progress':
       return 'badge-info'
     case 'in_review':
       return 'badge-warning'
     case 'on_hold':
-      return 'badge-neutral'
-    case 'question':
       return 'badge-error'
+    case 'backlog':
+      return 'badge-ghost'
+    case 'todo':
+      return 'badge-warning'
     default:
       return 'badge-ghost'
   }
@@ -742,10 +745,10 @@ function SortableTopicSection({
 
 // Kanban status configuration - matches Work Execution page
 const KANBAN_STATUSES = [
-  { id: 'on_hold', title: 'Backlog', color: '#6b7280' },
-  { id: 'new', title: 'To Do', color: '#f59e0b' },
-  { id: 'working', title: 'In Progress', color: '#3b82f6' },
-  { id: 'question', title: 'Blocked', color: '#ef4444' },
+  { id: 'backlog', title: 'Backlog', color: '#6b7280' },
+  { id: 'todo', title: 'To Do', color: '#f59e0b' },
+  { id: 'in_progress', title: 'In Progress', color: '#3b82f6' },
+  { id: 'on_hold', title: 'On Hold', color: '#ef4444' },
   { id: 'in_review', title: 'Review', color: '#8b5cf6' },
   { id: 'done', title: 'Done', color: '#10b981' },
 ] as const
@@ -823,6 +826,9 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { company, isLoading: authLoading } = useAuthStore()
   const { openModal } = useModalStore()
+  const projectsVersion = useRefreshStore((state) => state.projectsVersion)
+  const tasksVersion = useRefreshStore((state) => state.tasksVersion)
+  const topicsVersion = useRefreshStore((state) => state.topicsVersion)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [project, setProject] = useState<Project | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
@@ -863,7 +869,7 @@ export default function ProjectDetailPage() {
                     id: data.task.id,
                     title: data.task.title,
                     description: data.task.description,
-                    status: data.task.status || 'new',
+                    status: data.task.status || 'todo',
                     priority: data.task.priority || 'medium',
                     completed: data.task.completed || false,
                     due_date: data.task.due_date,
@@ -972,7 +978,7 @@ export default function ProjectDetailPage() {
         ...topic,
         tasks: topic.tasks.map((task) =>
           task.id === taskId
-            ? { ...task, completed, status: completed ? 'done' : 'new' }
+            ? { ...task, completed, status: completed ? 'done' : 'todo' }
             : task
         ),
       }))
@@ -981,7 +987,7 @@ export default function ProjectDetailPage() {
     // Also update selected task if it's the one being toggled
     if (selectedTask?.id === taskId) {
       setSelectedTask((prev) =>
-        prev ? { ...prev, completed, status: completed ? 'done' : 'new' } : null
+        prev ? { ...prev, completed, status: completed ? 'done' : 'todo' } : null
       )
     }
 
@@ -1275,6 +1281,14 @@ export default function ProjectDetailPage() {
     }
   }, [id, company?.id, authLoading])
 
+  // Refresh when AI makes changes via skills
+  useEffect(() => {
+    // Only refetch if we have data loaded and a version change happened
+    if ((projectsVersion > 0 || tasksVersion > 0 || topicsVersion > 0) && id && company?.id && !loading) {
+      fetchProjectData()
+    }
+  }, [projectsVersion, tasksVersion, topicsVersion])
+
   // Handler to open the Create Topic modal
   const handleAddTopic = () => {
     if (!id) return
@@ -1314,7 +1328,7 @@ export default function ProjectDetailPage() {
                       id: newTask.id,
                       title: newTask.title,
                       description: newTask.description,
-                      status: newTask.status || 'new',
+                      status: newTask.status || 'todo',
                       priority: newTask.priority,
                       completed: newTask.completed || false,
                       due_date: newTask.due_date,
@@ -1363,12 +1377,12 @@ export default function ProjectDetailPage() {
   // Group tasks by status for Kanban view - matches Work Execution page columns
   const getTasksByStatus = () => {
     const tasksByStatus: Record<string, Task[]> = {
-      on_hold: [],   // Backlog
-      new: [],       // To Do
-      working: [],   // In Progress
-      question: [],  // Blocked
-      in_review: [], // Review
-      done: [],      // Done
+      backlog: [],     // Backlog
+      todo: [],        // To Do
+      in_progress: [], // In Progress
+      on_hold: [],     // On Hold
+      in_review: [],   // Review
+      done: [],        // Done
     }
 
     topics.forEach((topic) => {
@@ -1377,8 +1391,8 @@ export default function ProjectDetailPage() {
         if (tasksByStatus[status]) {
           tasksByStatus[status].push(task)
         } else {
-          // Default to 'new' (To Do) if status doesn't match
-          tasksByStatus.new.push(task)
+          // Default to 'todo' (To Do) if status doesn't match
+          tasksByStatus.todo.push(task)
         }
       })
     })

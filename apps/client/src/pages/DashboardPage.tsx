@@ -54,16 +54,18 @@ export default function DashboardPage() {
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'new':
+      case 'backlog':
+        return 'badge-ghost'
+      case 'todo':
         return 'badge-warning'
-      case 'working':
+      case 'in_progress':
         return 'badge-info'
+      case 'on_hold':
+        return 'badge-error'
       case 'in_review':
         return 'badge-secondary'
       case 'done':
         return 'badge-success'
-      case 'on_hold':
-        return 'badge-neutral'
       default:
         return 'badge-ghost'
     }

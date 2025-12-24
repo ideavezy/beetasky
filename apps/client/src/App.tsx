@@ -14,6 +14,19 @@ import CRMPage from './pages/CRMPage'
 import ContactDetailPage from './pages/ContactDetailPage'
 import DealsPage from './pages/DealsPage'
 import SkillsPage from './pages/SkillsPage'
+import { 
+  DocumentsLandingPage,
+  ContractsPage, 
+  ContractTemplatesPage,
+  ContractTemplateBuilderPage,
+  InvoicesPage, 
+  CreateContractPage, 
+  CreateInvoicePage,
+  ContractDetailPage,
+  InvoiceDetailPage,
+  DocumentSettingsPage 
+} from './pages/documents'
+import { PublicContractPage, PublicInvoicePage } from './pages/public'
 
 function App() {
   return (
@@ -129,9 +142,91 @@ function App() {
             path="/documents"
             element={
               <AuthGuard>
-                <DashboardPage />
+                <DocumentsLandingPage />
               </AuthGuard>
             }
+          />
+          <Route
+            path="/documents/contracts"
+            element={
+              <AuthGuard>
+                <ContractsPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/contracts/create"
+            element={
+              <AuthGuard>
+                <CreateContractPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/contracts/templates"
+            element={
+              <AuthGuard>
+                <ContractTemplatesPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/contracts/templates/:id"
+            element={
+              <AuthGuard>
+                <ContractTemplateBuilderPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/contracts/:id"
+            element={
+              <AuthGuard>
+                <ContractDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/invoices"
+            element={
+              <AuthGuard>
+                <InvoicesPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/invoices/create"
+            element={
+              <AuthGuard>
+                <CreateInvoicePage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/invoices/:id"
+            element={
+              <AuthGuard>
+                <InvoiceDetailPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/documents/settings"
+            element={
+              <AuthGuard>
+                <DocumentSettingsPage />
+              </AuthGuard>
+            }
+          />
+          
+          {/* Public routes for contracts and invoices (token-based auth) */}
+          <Route
+            path="/public/contracts/:token"
+            element={<PublicContractPage />}
+          />
+          <Route
+            path="/public/invoices/:token"
+            element={<PublicInvoicePage />}
           />
           <Route
             path="/calendar"

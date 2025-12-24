@@ -59,7 +59,7 @@ class UpdateTaskTool extends Tool
                 'status' => [
                     'type' => 'string',
                     'description' => 'The new status of the task',
-                    'enum' => ['new', 'working', 'question', 'on_hold', 'in_review', 'done', 'canceled'],
+                    'enum' => ['backlog', 'todo', 'in_progress', 'on_hold', 'in_review', 'done'],
                 ],
                 'priority' => [
                     'type' => 'string',

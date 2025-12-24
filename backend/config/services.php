@@ -87,4 +87,23 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Bunny.net CDN Storage Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for Bunny.net CDN storage service.
+    | Used for file uploads across the application (avatars, attachments, etc.)
+    |
+    */
+
+    'bunny' => [
+        'storage_zone' => env('BUNNY_STORAGE_ZONE'),
+        'storage_password' => env('BUNNY_STORAGE_PASSWORD'),
+        'storage_url' => env('BUNNY_STORAGE_URL'),
+        'region' => env('BUNNY_REGION'),
+        'base_url' => env('BUNNY_BASE_URL'),
+        'max_file_size' => 26214400, // 25 MB in bytes
+    ],
+
 ];

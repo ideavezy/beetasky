@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { api, getAuthToken } from '../lib/api'
+import { triggerRefreshFromSkillResults } from './refresh'
+import { useFlowStore } from './flow'
 
 // Chat message type
 export interface ChatMessage {
@@ -195,6 +197,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             } else if (data.type === 'chunk') {
               // Append content chunk
               get().appendStreamChunk(data.content)
+            } else if (data.type === 'tool_calls') {
+              // Skills were executed - trigger refresh for affected data
+              if (data.results && Array.isArray(data.results)) {
+                triggerRefreshFromSkillResults(data.results)
+              }
             } else if (data.type === 'done') {
               // Streaming complete
               get().setStreamingComplete(data.message_id, data.conversation_id)
@@ -202,9 +209,128 @@ export const useChatStore = create<ChatState>((set, get) => ({
               // Handle error from server
               get().setStreamingError(data.message)
             } else if (data.type === 'flow_created') {
-              // Flow was created - the flow store will be updated via WebSocket events
-              // For now, we can show the flow info in the chat
-              console.log('Flow created:', data.flow_id, data.title)
+              // Flow was created - start polling for updates
+              console.log('[Flow] Created:', data.flow_id, data.title)
+              
+              // Start polling for flow updates
+              if (data.flow_id) {
+                const flowStore = useFlowStore.getState()
+                flowStore.loadFlow(data.flow_id)
+                
+                let lastStatus: string | null = null
+                let lastCompletedSteps = 0
+                let pollCount = 0
+                let errorCount = 0
+                const MAX_ERRORS = 3
+                const MAX_POLLS = 60 // Max 2 minutes of polling (60 * 2s)
+                
+                // Start polling interval
+                const pollInterval = setInterval(async () => {
+                  pollCount++
+                  
+                  // Stop if max polls reached
+                  if (pollCount > MAX_POLLS) {
+                    console.warn('[Flow] Max polls reached, stopping')
+                    clearInterval(pollInterval)
+                    return
+                  }
+                  
+                  try {
+                    await flowStore.loadFlow(data.flow_id)
+                    const flow = useFlowStore.getState().currentFlow
+                    console.log(`[Flow] Poll #${pollCount}:`, flow?.status, `${flow?.completedSteps}/${flow?.totalSteps}`)
+                    
+                    if (!flow) {
+                      errorCount++
+                      console.warn(`[Flow] Flow not found (${errorCount}/${MAX_ERRORS})`)
+                      if (errorCount >= MAX_ERRORS) {
+                        console.error('[Flow] Max errors reached, stopping polling')
+                        clearInterval(pollInterval)
+                      }
+                      return
+                    }
+                    
+                    // Reset error count on success
+                    errorCount = 0
+                    
+                    // Update progress in last message if steps completed
+                    if (flow.completedSteps > lastCompletedSteps) {
+                      lastCompletedSteps = flow.completedSteps
+                      console.log(`[Flow] Progress: ${flow.completedSteps}/${flow.totalSteps} steps completed`)
+                    }
+                    
+                    // Check if flow is done (either by status or all steps completed)
+                    const isFlowDone = flow.status === 'completed' || 
+                      (flow.status === 'running' && flow.completedSteps >= flow.totalSteps)
+                    
+                    if (flow.status !== lastStatus || isFlowDone) {
+                      lastStatus = flow.status
+                      
+                      if (flow.status === 'completed' || isFlowDone) {
+                        console.log('[Flow] Completed! Adding success message to chat')
+                        clearInterval(pollInterval)
+                        
+                        // Clear the flow from store so progress card disappears
+                        useFlowStore.setState({ currentFlow: null })
+                        
+                        // Add completion message to chat
+                        const completionMessage: ChatMessage = {
+                          id: `flow-complete-${flow.id}`,
+                          conversationId: get().conversationId || '',
+                          senderType: 'ai_agent',
+                          senderId: null,
+                          sender: { id: null, name: 'AI Assistant', avatar: null, type: 'ai_agent' },
+                          role: 'assistant',
+                          content: `✅ **Flow Completed: ${flow.title}**\n\nAll ${flow.totalSteps} steps completed successfully!`,
+                          createdAt: new Date().toISOString(),
+                        }
+                        set(state => ({ messages: [...state.messages, completionMessage] }))
+                        
+                        // Trigger refresh based on completed steps
+                        const skillsExecuted = flow.steps
+                          .filter(s => s.status === 'completed' && s.skillSlug)
+                          .map(s => ({ skill: s.skillSlug!, result: s.result || {} }))
+                        
+                        if (skillsExecuted.length > 0) {
+                          triggerRefreshFromSkillResults(skillsExecuted)
+                        }
+                      } else if (flow.status === 'awaiting_user') {
+                        console.log('[Flow] Awaiting user input - modal should open')
+                        // Modal will be opened by flow store's loadFlow
+                      } else if (flow.status === 'failed') {
+                        console.log('[Flow] Failed! Adding error message to chat')
+                        clearInterval(pollInterval)
+                        
+                        // Clear the flow from store so progress card disappears
+                        useFlowStore.setState({ currentFlow: null })
+                        
+                        // Add failure message to chat
+                        const failMessage: ChatMessage = {
+                          id: `flow-failed-${flow.id}`,
+                          conversationId: get().conversationId || '',
+                          senderType: 'ai_agent',
+                          senderId: null,
+                          sender: { id: null, name: 'AI Assistant', avatar: null, type: 'ai_agent' },
+                          role: 'assistant',
+                          content: `❌ **Flow Failed: ${flow.title}**\n\n${flow.lastError || 'An error occurred during execution.'}`,
+                          error: true,
+                          createdAt: new Date().toISOString(),
+                        }
+                        set(state => ({ messages: [...state.messages, failMessage] }))
+                      } else if (flow.status === 'cancelled') {
+                        clearInterval(pollInterval)
+                      }
+                      // If awaiting user input, the modal will show automatically via flow store
+                    }
+                  } catch (error) {
+                    console.error('Flow polling error:', error)
+                    clearInterval(pollInterval)
+                  }
+                }, 2000) // Poll every 2 seconds
+                
+                // Safety: clear interval after 5 minutes max
+                setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000)
+              }
             }
           } catch {
             // Skip invalid JSON

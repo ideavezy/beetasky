@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PostgresBoolean;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -39,7 +40,7 @@ class Project extends Model
             'tags' => 'array',
             'ai_settings' => 'array',
             'settings' => 'array',
-            'ai_enabled' => 'boolean',
+            'ai_enabled' => PostgresBoolean::class,
             'start_date' => 'date',
             'due_date' => 'date',
             'budget' => 'decimal:2',

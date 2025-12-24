@@ -30,7 +30,9 @@
 | [environment-setup.md](./environment-setup.md) | Local development setup |
 | [coding-guidelines.md](./coding-guidelines.md) | **⚠️ IMPORTANT:** Common pitfalls, PostgreSQL boolean handling, Zustand patterns |
 | [ai-chat.md](./ai-chat.md) | AI Chat system with SSE streaming, API endpoints, frontend integration |
+| [ai-flow-queue.md](./ai-flow-queue.md) | AI Flow Queue system for multi-step workflows, parameter validation, user prompts |
 | [project-management.md](./project-management.md) | Project/Task system, Smart Import, AI suggestions |
+| [file-upload-system.md](./file-upload-system.md) | **✅ IMPLEMENTED:** Bunny.net upload system, reusable for any entity type |
 
 ---
 
@@ -488,6 +490,108 @@ CREATE INDEX idx_ai_tool_logs_run ON ai_tool_logs(ai_run_id);
 CREATE INDEX idx_ai_tool_logs_tool ON ai_tool_logs(ai_tool_id);
 ```
 
+#### 15. `ai_flow_queues` (multi-step AI workflows)
+```sql
+CREATE TABLE ai_flow_queues (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id),
+    user_id UUID NOT NULL REFERENCES users(id),
+    conversation_id UUID REFERENCES conversations(id),
+    
+    title VARCHAR(255) NOT NULL,
+    original_request TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',  -- pending, running, awaiting_user, completed, failed, cancelled
+    current_step_id UUID,
+    
+    flow_context JSONB DEFAULT '{}'::jsonb,  -- Accumulated data passed between steps
+    
+    total_steps INTEGER DEFAULT 0,
+    completed_steps INTEGER DEFAULT 0,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    last_error TEXT,
+    
+    ai_run_id UUID REFERENCES ai_runs(id),
+    planning_prompt TEXT,
+    
+    started_at TIMESTAMPTZ,
+    paused_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_flow_queues_user_status ON ai_flow_queues(user_id, status);
+CREATE INDEX idx_flow_queues_company ON ai_flow_queues(company_id);
+```
+
+#### 16. `ai_flow_steps` (individual steps in a flow)
+```sql
+CREATE TABLE ai_flow_steps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    flow_id UUID NOT NULL REFERENCES ai_flow_queues(id) ON DELETE CASCADE,
+    
+    position INTEGER NOT NULL DEFAULT 0,
+    parent_step_id UUID REFERENCES ai_flow_steps(id),
+    
+    step_type VARCHAR(30) NOT NULL,  -- tool_call, user_prompt, ai_decision, conditional
+    skill_slug VARCHAR(100),
+    title VARCHAR(255),
+    description TEXT,
+    
+    input_params JSONB DEFAULT '{}'::jsonb,
+    param_mappings JSONB DEFAULT '{}'::jsonb,  -- Dynamic mappings like {{context.task_id}}
+    
+    status VARCHAR(20) DEFAULT 'pending',  -- pending, running, completed, failed, skipped, cancelled, awaiting_user
+    result JSONB,
+    error_message TEXT,
+    
+    -- User interaction config
+    prompt_type VARCHAR(20),  -- choice, text, confirm
+    prompt_message TEXT,
+    prompt_options JSONB,
+    user_response JSONB,
+    
+    -- Conditional branching
+    condition JSONB,
+    on_success_goto INTEGER,
+    on_fail_goto INTEGER,
+    
+    ai_decision_prompt TEXT,
+    ai_decision_result JSONB,
+    
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_flow_steps_flow_position ON ai_flow_steps(flow_id, position);
+CREATE INDEX idx_flow_steps_status ON ai_flow_steps(status);
+```
+
+#### 17. `ai_flow_logs` (audit log for flow events)
+```sql
+CREATE TABLE ai_flow_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    flow_id UUID NOT NULL REFERENCES ai_flow_queues(id) ON DELETE CASCADE,
+    step_id UUID REFERENCES ai_flow_steps(id),
+    
+    log_type VARCHAR(50) NOT NULL,  -- flow_created, step_started, step_completed, etc.
+    message TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    actor_type VARCHAR(20) DEFAULT 'system',
+    actor_id UUID,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_flow_logs_flow_created ON ai_flow_logs(flow_id, created_at);
+```
+
+> **Note:** Full documentation for the AI Flow Queue system is in [ai-flow-queue.md](./ai-flow-queue.md)
+
 ---
 
 ### Knowledge / RAG Layer
@@ -628,6 +732,12 @@ CREATE INDEX idx_live_notes_session ON live_notes(session_id);
 
 ### Storage Tables
 
+**Note:** The file upload system using Bunny.net is fully implemented and documented. See [file-upload-system.md](./file-upload-system.md) for complete details on:
+- Direct browser-to-CDN uploads
+- Reusable upload components and hooks
+- Security measures and validation
+- Integration guide for any entity type
+
 #### 21. `media` (Bunny CDN references)
 ```sql
 CREATE TABLE media (
@@ -649,6 +759,12 @@ CREATE INDEX idx_media_company ON media(company_id);
 CREATE INDEX idx_media_entity ON media(entity_type, entity_id);
 CREATE INDEX idx_media_deleted ON media(deleted_at) WHERE deleted_at IS NULL;
 ```
+
+**Current Implementation:**
+- `task_attachments` table for task comment attachments (✅ Working)
+- Generic upload API endpoints: `/api/v1/upload/prepare` and `/api/v1/upload/confirm`
+- Reusable `useFileUpload` hook and `FileUploadButton` component
+- Ready to use for: user avatars, company logos, project files, contact documents, etc.
 
 ---
 

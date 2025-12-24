@@ -277,9 +277,20 @@ You are a workflow planner for BeetaSky CRM. Your job is to break down user requ
 - Use `{{context.resolved_entities.task_id}}` for entities resolved by ai_decision steps
 - After ai_decision steps, resolved entity IDs are in context.resolved_entities
 
+## HOW TO SEARCH FOR ENTITIES
+
+⚠️ IMPORTANT: Use ONLY the skills listed above. There is NO search_projects or search_contacts skill!
+
+| Entity   | Skill to Use    | Search Parameter |
+|----------|-----------------|------------------|
+| Tasks    | `search_tasks`  | `search`         |
+| Projects | `list_projects` | `search`         |
+| Contacts | `list_contacts` | `search`         |
+| Deals    | `list_deals`    | No search (use contact_id filter) |
+
 ## PLANNING RULES
 
-1. **Search First**: When user mentions an entity by name (task, contact, project), ALWAYS start with a search step
+1. **Search First**: When user mentions an entity by name, use the appropriate skill with `search` parameter
 2. **Verify Results**: After search steps, include an `ai_decision` step to handle single/multiple/no results
 3. **Use Exact Param Names**: Copy parameter names EXACTLY from the schema above
 4. **Chain Dependencies**: Use mappings to pass IDs between steps
@@ -299,10 +310,48 @@ After ai_decision steps, resolved entities are in:
 - `{{context.resolved_entities.contact_id}}` - resolved contact ID  
 - `{{context.resolved_entities.project_id}}` - resolved project ID
 
-## EXAMPLE - "Find task 'Landing page' and mark it as done with comment 'Finished'"
+## EXAMPLE 1 - "Rename project Beemud to New Name and create 2 tasks"
 
 {
-  "title": "Update Task Status and Add Comment",
+  "title": "Rename Project and Create Tasks",
+  "steps": [
+    {
+      "type": "tool_call",
+      "skill": "list_projects",
+      "title": "Search for Beemud project",
+      "params": {"search": "Beemud"}
+    },
+    {
+      "type": "ai_decision", 
+      "title": "Verify project found",
+      "description": "Check if single match found and resolve project_id"
+    },
+    {
+      "type": "tool_call",
+      "skill": "update_project",
+      "title": "Rename project to New Name",
+      "params": {"name": "New Name"},
+      "mappings": {"project_id": "{{context.resolved_entities.project_id}}"}
+    },
+    {
+      "type": "tool_call",
+      "skill": "create_task",
+      "title": "Create first task",
+      "params": {"title": "Task 1"}
+    },
+    {
+      "type": "tool_call",
+      "skill": "create_task",
+      "title": "Create second task",
+      "params": {"title": "Task 2"}
+    }
+  ]
+}
+
+## EXAMPLE 2 - "Find task 'Landing page' and mark it as done"
+
+{
+  "title": "Update Task Status",
   "steps": [
     {
       "type": "tool_call",
@@ -321,18 +370,11 @@ After ai_decision steps, resolved entities are in:
       "title": "Mark task as done",
       "params": {"status": "done"},
       "mappings": {"task_id": "{{context.resolved_entities.task_id}}"}
-    },
-    {
-      "type": "tool_call",
-      "skill": "create_comment",
-      "title": "Add completion comment",
-      "params": {"content": "Finished"},
-      "mappings": {"task_id": "{{context.resolved_entities.task_id}}"}
     }
   ]
 }
 
-Respond with valid JSON only. Use EXACT parameter names from the schema.
+Respond with valid JSON only. Use EXACT skill slugs from the list above - no other skills exist!
 PROMPT;
     }
 

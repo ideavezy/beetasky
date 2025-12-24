@@ -56,13 +56,12 @@ class Task extends Model
      * Status options for tasks.
      */
     public const STATUSES = [
-        'new' => 'New',
-        'working' => 'Working on',
-        'question' => 'Question',
+        'backlog' => 'Backlog',
+        'todo' => 'To Do',
+        'in_progress' => 'In Progress',
         'on_hold' => 'On Hold',
-        'in_review' => 'In Review',
+        'in_review' => 'Review',
         'done' => 'Done',
-        'canceled' => 'Canceled',
     ];
 
     /**
@@ -272,7 +271,7 @@ class Task extends Model
             'completed' => false,
             'completed_at' => null,
             'completed_by' => null,
-            'status' => 'new',
+            'status' => 'todo',
         ]);
     }
 

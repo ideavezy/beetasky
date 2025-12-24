@@ -112,6 +112,7 @@ class TaskCommentController extends Controller
                             'company_id' => $companyId,
                             'uploaded_by' => $user->id,
                             'filename' => $attachment['filename'] ?? 'Unnamed file',
+                            'bunny_filename' => basename($attachment['path'] ?? ''),
                             'path' => $attachment['path'] ?? '',
                             'mime_type' => $attachment['mime_type'] ?? '',
                             'size' => $attachment['size'] ?? 0,

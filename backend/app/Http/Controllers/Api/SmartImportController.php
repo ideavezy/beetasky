@@ -161,7 +161,7 @@ class SmartImportController extends Controller
                             'topic_id' => $topicId,
                             'company_id' => $job->company_id,
                             'title' => $taskData['title'],
-                            'status' => 'new',
+                            'status' => 'todo',
                             'priority' => $taskData['priority'],
                             'ai_generated' => true,
                             'order' => $results['tasks_created'],

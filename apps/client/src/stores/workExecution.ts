@@ -4,10 +4,10 @@ import { api } from '../lib/api'
 
 // Status mapping for Kanban columns
 export const KANBAN_COLUMNS = [
-  { id: 'on_hold', title: 'Backlog', color: '#6b7280' },
-  { id: 'new', title: 'To Do', color: '#f59e0b' },
-  { id: 'working', title: 'In Progress', color: '#3b82f6' },
-  { id: 'question', title: 'Blocked', color: '#ef4444' },
+  { id: 'backlog', title: 'Backlog', color: '#6b7280' },
+  { id: 'todo', title: 'To Do', color: '#f59e0b' },
+  { id: 'in_progress', title: 'In Progress', color: '#3b82f6' },
+  { id: 'on_hold', title: 'On Hold', color: '#ef4444' },
   { id: 'in_review', title: 'Review', color: '#8b5cf6' },
   { id: 'done', title: 'Done', color: '#10b981' },
 ] as const
@@ -353,7 +353,7 @@ export const useWorkExecutionStore = create<WorkExecutionState>()(
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === taskId
-              ? { ...t, completed, status: completed ? 'done' : 'new' }
+              ? { ...t, completed, status: completed ? 'done' : 'todo' }
               : t
           ),
           isUpdating: true,
@@ -455,8 +455,8 @@ export function groupTasksByStatus(tasks: WorkExecutionTask[]): Record<string, W
     if (grouped[status]) {
       grouped[status].push(task)
     } else {
-      // Default to 'new' if status doesn't match
-      grouped['new'].push(task)
+      // Default to 'todo' if status doesn't match
+      grouped['todo'].push(task)
     }
   })
   

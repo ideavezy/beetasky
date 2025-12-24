@@ -79,6 +79,12 @@ class ProcessFlowStep implements ShouldQueue
             if ($flow->completed_steps < $flow->total_steps) {
                 // Dispatch next step with a small delay
                 self::dispatch($this->flowId)->delay(now()->addSeconds(1));
+            } else {
+                // All steps completed - dispatch one more time to trigger completeFlow
+                Log::info('ProcessFlowStep: All steps done, dispatching final job to complete flow', [
+                    'flow_id' => $this->flowId,
+                ]);
+                self::dispatch($this->flowId)->delay(now()->addMilliseconds(500));
             }
         }
 

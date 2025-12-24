@@ -147,7 +147,14 @@ class AIService
     }
 
     /**
+     * Maximum iterations for tool calling loop.
+     * Prevents infinite loops while allowing multi-step operations.
+     */
+    protected int $maxToolIterations = 5;
+
+    /**
      * Stream a chat response with skills (function calling) support.
+     * Supports iterative tool calling - AI can search, then act on results.
      *
      * @param string $message The user's message
      * @param array $conversationHistory Previous messages in LLM format
@@ -204,18 +211,28 @@ class AIService
         $messages[] = ['role' => 'user', 'content' => $message];
 
         $startTime = microtime(true);
-        $toolCalls = [];
-        $toolResults = [];
+        $allToolResults = [];
+        $iteration = 0;
+        $totalInputTokens = 0;
+        $totalOutputTokens = 0;
 
         try {
-            Log::info('Starting OpenAI chat with skills', [
+            Log::info('Starting OpenAI chat with skills (iterative)', [
                 'user_id' => $userId,
                 'company_id' => $companyId,
                 'tools_count' => count($tools),
                 'message_length' => strlen($message),
             ]);
 
-            // First call: Check if AI wants to use tools
+            // Iterative tool calling loop
+            while ($iteration < $this->maxToolIterations) {
+                $iteration++;
+
+                Log::info("Tool calling iteration {$iteration}", [
+                    'messages_count' => count($messages),
+                ]);
+
+                // Call OpenAI
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
@@ -234,39 +251,41 @@ class AIService
                 Log::error('OpenAI API error', [
                     'status' => $response->status(),
                     'error' => $errorMsg,
+                        'iteration' => $iteration,
                 ]);
                 throw new \Exception('AI service error: ' . $errorMsg);
             }
 
             $data = $response->json();
-            $firstChoice = $data['choices'][0] ?? null;
+                $totalInputTokens += $data['usage']['prompt_tokens'] ?? 0;
+                $totalOutputTokens += $data['usage']['completion_tokens'] ?? 0;
 
-            if (!$firstChoice) {
+                $choice = $data['choices'][0] ?? null;
+                if (!$choice) {
                 throw new \Exception('No response from AI service');
             }
 
-            $assistantMessage = $firstChoice['message'] ?? [];
-            $finishReason = $firstChoice['finish_reason'] ?? '';
+                $assistantMessage = $choice['message'] ?? [];
+                $finishReason = $choice['finish_reason'] ?? '';
 
-            Log::info('OpenAI initial response', [
+                Log::info("OpenAI response iteration {$iteration}", [
                 'finish_reason' => $finishReason,
                 'has_tool_calls' => !empty($assistantMessage['tool_calls']),
+                    'has_content' => !empty($assistantMessage['content']),
             ]);
 
             // Check if AI wants to call tools
             if ($finishReason === 'tool_calls' && !empty($assistantMessage['tool_calls'])) {
-                $toolCalls = $assistantMessage['tool_calls'];
-
                 // Add assistant's tool call message to history
                 $messages[] = $assistantMessage;
 
-                // Execute each tool call with timeout protection
-                foreach ($toolCalls as $toolCall) {
+                    // Execute each tool call
+                    foreach ($assistantMessage['tool_calls'] as $toolCall) {
                     $functionName = $toolCall['function']['name'] ?? '';
                     $functionArgs = json_decode($toolCall['function']['arguments'] ?? '{}', true);
                     $toolCallId = $toolCall['id'] ?? '';
 
-                    Log::info('Executing skill from chat', [
+                        Log::info('Executing skill from chat (iteration ' . $iteration . ')', [
                         'skill' => $functionName,
                         'args' => $functionArgs,
                         'user_id' => $userId,
@@ -274,7 +293,6 @@ class AIService
                     ]);
 
                     try {
-                        // Execute the skill with a timeout wrapper
                         $skillStartTime = microtime(true);
                         $result = $this->skillService->executeSkill(
                             $functionName,
@@ -288,6 +306,7 @@ class AIService
                         Log::info('Skill executed successfully', [
                             'skill' => $functionName,
                             'success' => $result['success'] ?? false,
+                                'status' => $result['status'] ?? null,
                             'latency_ms' => $skillLatency,
                         ]);
                     } catch (\Exception $e) {
@@ -301,12 +320,13 @@ class AIService
                         ];
                     }
 
-                    $toolResults[] = [
+                        $allToolResults[] = [
                         'skill' => $functionName,
                         'result' => $result,
+                            'iteration' => $iteration,
                     ];
 
-                    // Add tool result to messages
+                        // Add tool result to messages for next iteration
                     $messages[] = [
                         'role' => 'tool',
                         'tool_call_id' => $toolCallId,
@@ -314,26 +334,63 @@ class AIService
                     ];
                 }
 
-                // Now stream the final response with tool results
-                return $this->streamFinalResponse($messages, $onChunk, $startTime, $toolResults);
+                    // Continue the loop - AI will process tool results and may call more tools
+                    continue;
             }
 
-            // No tool calls - stream the response directly
-            $content = $assistantMessage['content'] ?? '';
+                // No more tool calls - AI is ready to respond
+                // Stream the final response
+                if (!empty($assistantMessage['content'])) {
+                    $content = $assistantMessage['content'];
             $onChunk($content);
 
             return [
                 'content' => $content,
-                'input_tokens' => $data['usage']['prompt_tokens'] ?? 0,
-                'output_tokens' => $data['usage']['completion_tokens'] ?? 0,
+                        'input_tokens' => $totalInputTokens,
+                        'output_tokens' => $totalOutputTokens,
                 'latency_ms' => (int) ((microtime(true) - $startTime) * 1000),
-                'tool_calls' => [],
-                'tool_results' => [],
-            ];
+                        'tool_results' => $allToolResults,
+                        'iterations' => $iteration,
+                    ];
+                }
+
+                // Edge case: finish_reason is 'stop' but no content
+                // This shouldn't happen, but handle it gracefully
+                Log::warning('AI finished without content', [
+                    'finish_reason' => $finishReason,
+                    'iteration' => $iteration,
+                ]);
+
+                // If we have tool results, stream a summary response
+                if (!empty($allToolResults)) {
+                    return $this->streamFinalResponse($messages, $onChunk, $startTime, $allToolResults);
+                }
+
+                // Truly empty response
+                $onChunk("I apologize, but I wasn't able to process your request. Could you please try rephrasing it?");
+                return [
+                    'content' => "I apologize, but I wasn't able to process your request. Could you please try rephrasing it?",
+                    'input_tokens' => $totalInputTokens,
+                    'output_tokens' => $totalOutputTokens,
+                    'latency_ms' => (int) ((microtime(true) - $startTime) * 1000),
+                    'tool_results' => $allToolResults,
+                    'iterations' => $iteration,
+                ];
+            }
+
+            // Max iterations reached - stream what we have
+            Log::warning('Max tool iterations reached', [
+                'max' => $this->maxToolIterations,
+                'tool_results_count' => count($allToolResults),
+            ]);
+
+            return $this->streamFinalResponse($messages, $onChunk, $startTime, $allToolResults);
+
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error('OpenAI connection timeout', [
                 'error' => $e->getMessage(),
                 'user_id' => $userId,
+                'iteration' => $iteration,
             ]);
             throw new \Exception('Connection timed out. Please try again.');
         } catch (\Exception $e) {
@@ -341,6 +398,7 @@ class AIService
                 'error' => $e->getMessage(),
                 'user_id' => $userId,
                 'company_id' => $companyId,
+                'iteration' => $iteration,
             ]);
             throw $e;
         }
@@ -490,100 +548,93 @@ PERSONALITY:
 AVAILABLE SKILLS:
 {$skillsList}
 
-CRITICAL RULES FOR USING SKILLS:
-1. **DO NOT ASK FOR OPTIONAL FIELDS** - Only ask for truly required information
-2. Use default values for optional fields (priority=medium, status=new, relation_type=lead, etc.)
-3. If user says "create a task called X" - just create it with title=X and defaults
-4. Look in the CONTEXT for topic_id, project_id, contact_id if not provided by user
-5. Execute the skill IMMEDIATELY once you have the required info
-6. After executing, briefly confirm what was done
+⚠️ CRITICAL ACTION RULES - NEVER BREAK THESE:
+
+1. **NEVER SAY "LET ME FIND" WITHOUT ACTUALLY CALLING A SKILL**
+   - WRONG: "Let me find the project ID for you. Please hold on." (then doing nothing)
+   - RIGHT: Actually call search_projects or list_projects skill IMMEDIATELY
+
+2. **ALWAYS USE SEARCH SKILLS WHEN GIVEN A NAME/TITLE**
+   - If user says "rename project Test" → Call list_projects or search_projects with search="Test" FIRST
+   - If user says "update task Landing page" → Call search_tasks with search="Landing page" FIRST
+   - If user says "find contact John" → Call list_contacts with search="John" FIRST
+
+3. **CHAIN SKILLS IN ONE TURN**
+   - Search first → Get results → Then call update/action skill with the ID from results
+   - Example: User says "mark task 'Homepage' as done"
+     Step 1: Call search_tasks(search="Homepage") → Get task_id from result
+     Step 2: Call update_task(task_id=<from step 1>, status="done")
+
+4. **USE SEARCH PARAMETERS, NOT IDs FROM USER TEXT**
+   - User saying "project Test" means search for name "Test", NOT that "Test" is an ID
+   - User saying "task Homepage" means search for title "Homepage", NOT that "Homepage" is an ID
+
+5. **EXECUTE IMMEDIATELY - NO EMPTY PROMISES**
+   - Don't say "I'll find that for you" then stop
+   - Don't say "Please hold on" then do nothing
+   - Either call a skill NOW or ask the user for specific missing info
+
+SKILL USAGE PATTERNS:
+
+**Finding items by name:**
+- Projects: list_projects(search="name") or search_projects(query="name")
+- Tasks: search_tasks(search="title") or update_task(search="title", ...)
+- Contacts: list_contacts(search="name")
+- Deals: list_deals(search="title")
+
+**Updating items by name (chained):**
+- First search, then update with the returned ID
+- update_task supports a 'search' parameter for convenience
+
+**Creating items:**
+- create_task, create_project, create_contact - use defaults for optional fields
+
+AVAILABLE SKILLS:
+{$skillsList}
 
 PROJECT MANAGEMENT SKILLS:
 - create_task: Create new tasks
-- update_task: Update tasks - **IMPORTANT**: Use the 'search' parameter to find tasks by name when you don't have the task_id. Example: {"search": "landing page", "status": "working"}
+- update_task: Update tasks - Use 'search' param to find by name, or 'task_id' if you have the ID
+- update_project: Update projects - Use 'search' param to find by name, or 'project_id' if you have the ID
 - search_tasks: Search for tasks by title/description
 - list_tasks: List tasks in a topic/project
+- list_projects: List/search projects
 - assign_task: Assign users to tasks
-- create_project, list_projects: Manage projects
+- create_project: Create new projects
 - create_topic, list_topics: Organize tasks into topics/sections
 
-TASK SEARCH RULES (CRITICAL):
-- When user mentions a task by name (e.g., "move landing page task to in progress"), use the 'search' parameter in update_task
-- NEVER make up or guess a task_id - always use search to find it first
-- The search parameter accepts partial matches, so "landing page" will find "Create a landing page for facebook"
-
-CRM SKILLS (Contacts & Leads):
-- create_contact: Add new leads/contacts (default: relation_type=lead)
+CRM SKILLS:
+- create_contact: Add new leads/contacts
 - list_contacts: Search and filter contacts
 - get_contact: Get detailed contact info
 - update_contact: Update contact fields
 - convert_lead: Convert lead to customer
 - add_contact_note: Log activities/interactions
-- score_lead: Calculate lead scores (or score_all=true for all leads)
+- create_deal, update_deal, list_deals: Manage deals pipeline
+- create_reminder, list_reminders: Manage reminders
 
-DEAL SKILLS (Sales Pipeline):
-- create_deal: Create sales opportunity (stages: qualification, proposal, negotiation)
-- update_deal: Move deals through pipeline, mark won/lost
-- list_deals: View pipeline with filters
+HANDLING SEARCH RESULTS:
 
-REMINDER SKILLS:
-- create_reminder: Set follow-up reminders (supports natural dates like "tomorrow", "next Tuesday")
-- list_reminders: View upcoming reminders
+1. **Single match** → Use the ID immediately for the requested action
+2. **Multiple matches** → Present numbered list and ask user to choose
+3. **No matches** → Ask user for more specific name or check spelling
 
-CRM CONTEXT AWARENESS:
-- Check crm.lead_insights.stale_leads_count for leads needing follow-up (14+ days inactive)
-- Check crm.lead_insights.hot_leads for high-scoring leads to prioritize
-- Check crm.pipeline for deal pipeline status
-- Use crm.conversion_stats to discuss lead conversion rates
-- When user mentions a contact name, use the 'search' parameter to find them
-
-WHEN HANDLING LEADS/CONTACTS:
-- Reference specific contact names from context when available
-- Mention lead scores when relevant (scores 60+ are "hot")
-- Suggest follow-ups for stale leads
-- When converting leads, congratulate the user!
-
-MULTI-TURN CONVERSATION HANDLING (IMPORTANT):
-When a skill returns a response requiring user input, you MUST handle it properly:
-
-1. **status: "multiple_matches"** - Multiple items found:
-   - Present the numbered list to the user clearly
-   - Ask them to pick a number or clarify
-   - Remember the matches list so you can use the task_id when they respond
-   - Example: "I found 3 tasks matching 'landing page'. Which one do you mean?\n\n**1)** Landing page for Facebook _(new)_\n**2)** Landing page redesign _(working)_\n**3)** Fix landing page bugs _(done)_"
-
-2. **status: "not_found"** - Nothing found:
-   - Tell the user you couldn't find it
-   - Ask for more specific keywords or the exact name
-   - Example: "I couldn't find a task matching 'facebook page'. Could you give me the exact task name or more details?"
-
-3. **When user responds with a number or clarification**:
-   - Use the task_id from the previous matches list (e.g., if they say "1", use the first task's ID)
-   - If they provide more keywords, search again with the new terms
-   - Complete the originally intended action (update, delete, etc.)
-
-4. **Maintaining context across messages**:
-   - Remember what action the user originally wanted (e.g., "move to in progress")
-   - When they clarify, combine with the original intent
-   - Example flow:
-     User: "Move landing page to in progress"
-     You: "I found 2 tasks. Which one?\n1. Landing page for FB\n2. Landing page for IG"
-     User: "1" or "the facebook one"
-     You: (Use task_id from option 1 + status: "working" from original request)
+MULTI-TURN HANDLING:
+When user responds with a number (e.g., "1") after you listed options:
+- Use the ID from that option
+- Complete the original action they requested
 
 CURRENT CONTEXT:
 {$contextJson}
 
-GUIDELINES:
+RESPONSE GUIDELINES:
 1. Be action-oriented - execute skills when user intent is clear
-2. After using a skill, summarize briefly: "✅ Created task 'X' in project Y"
-3. If skill fails, explain the error simply and suggest what to try
-4. Use markdown formatting for readability
-5. For CRM actions, reference contact names when confirming actions
-6. When asking follow-up questions, be concise and clear about what you need
-7. Remember previous context - if user says "1" after you listed options, use that option
+2. After using a skill, confirm: "✅ Done: [what was done]"
+3. If skill fails, explain simply and suggest alternatives
+4. Use markdown for readability
+5. If genuinely need clarification (multiple matches, ambiguous request), ask ONCE clearly
 
-Remember: Execute actions quickly. Don't over-ask. Use sensible defaults. But when clarification is genuinely needed (multiple matches, not found), ask and wait for user response.
+REMEMBER: Your job is to EXECUTE actions, not just acknowledge them. If you can't find something, SEARCH for it. Never respond with "let me find" without actually searching.
 PROMPT;
     }
 
@@ -1123,6 +1174,360 @@ PROMPT;
             'generated_at' => now()->toIso8601String(),
             'fallback' => true,
         ];
+    }
+
+    /**
+     * Generate contract template sections using AI.
+     *
+     * @param string $prompt User's description of the contract they need
+     * @param array $options Additional options (contract_type, client_info, etc.)
+     * @param string|null $userId User ID for logging
+     * @param string|null $companyId Company ID for logging
+     * @return array Generated sections in the template format
+     */
+    public function generateContractSections(
+        string $prompt,
+        array $options = [],
+        ?string $userId = null,
+        ?string $companyId = null
+    ): array {
+        if (empty($this->apiKey)) {
+            throw new \Exception('OpenAI API key not configured');
+        }
+
+        $contractType = $options['contract_type'] ?? 'fixed_price';
+        $clientName = $options['client_name'] ?? '{{client.full_name}}';
+        $projectName = $options['project_name'] ?? '{{project.name}}';
+
+        $systemPrompt = <<<'PROMPT'
+You are an expert contract writer. Generate professional contract sections based on the user's request.
+
+OUTPUT FORMAT:
+You MUST return a valid JSON object with this exact structure:
+{
+  "sections": [
+    {
+      "type": "heading",
+      "content": { "text": "Section Title" }
+    },
+    {
+      "type": "paragraph", 
+      "content": { "html": "<p>Paragraph content with <strong>formatting</strong> as needed.</p>" }
+    }
+  ],
+  "clickwrap_text": "I agree to the terms and conditions outlined above."
+}
+
+SECTION TYPES AVAILABLE:
+- "heading": For section titles. Use { "text": "Title Here" }
+- "paragraph": For rich text content. Use { "html": "<p>Content here</p>" }. You can use <strong>, <em>, <ul>, <ol>, <li> tags.
+- "table": For tabular data. Use { "rows": 3, "cols": 2, "cells": [["Header1", "Header2"], ["Value1", "Value2"], ["Value3", "Value4"]], "hasHeader": true }
+- "signature": For signature blocks. Use { "label": "Client Signature", "nameField": "{{client.full_name}}" }
+
+MERGE FIELDS TO USE:
+- {{client.first_name}}, {{client.last_name}}, {{client.full_name}}, {{client.email}}, {{client.phone}}, {{client.organization}}
+- {{project.name}}, {{project.description}}, {{project.start_date}}, {{project.end_date}}
+- {{company.name}}, {{company.email}}, {{company.phone}}, {{company.address}}
+- {{today}}, {{contract.created_date}}, {{contract.expires_at}}
+
+CONTRACT TYPE: __CONTRACT_TYPE__
+CLIENT: __CLIENT_NAME__
+PROJECT: __PROJECT_NAME__
+
+GUIDELINES:
+1. Create a professional, legally-sound contract structure
+2. Include all necessary sections for the type of service/project described
+3. Use merge fields for dynamic content (client name, dates, etc.)
+4. Include a signature section at the end
+5. Keep language clear and professional
+6. Include sections for: scope of work, deliverables, timeline, payment terms, confidentiality (if relevant), termination, and general provisions
+7. Return ONLY valid JSON, no markdown code blocks or extra text
+PROMPT;
+
+        // Inject runtime values (nowdoc doesn't interpolate variables)
+        $systemPrompt = str_replace(
+            ['__CONTRACT_TYPE__', '__CLIENT_NAME__', '__PROJECT_NAME__'],
+            [$contractType, $clientName, $projectName],
+            $systemPrompt
+        );
+
+        $userMessage = "Generate a contract for: {$prompt}";
+
+        $startTime = microtime(true);
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(60)->post($this->baseUrl . '/chat/completions', [
+                'model' => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userMessage],
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 4000,
+                'response_format' => ['type' => 'json_object'],
+            ]);
+
+            $latencyMs = (int)((microtime(true) - $startTime) * 1000);
+
+            if (!$response->successful()) {
+                $this->logAiRun(
+                    'contract_generation',
+                    $userId,
+                    $companyId,
+                    $prompt,
+                    null,
+                    $latencyMs,
+                    'failed',
+                    $response->body()
+                );
+                throw new \Exception('OpenAI API error: ' . $response->body());
+            }
+
+            $data = $response->json();
+            $content = $data['choices'][0]['message']['content'] ?? '';
+            
+            // Parse the JSON response
+            $result = json_decode($content, true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception('Failed to parse AI response as JSON');
+            }
+
+            // Add IDs and order to sections
+            $sections = $result['sections'] ?? [];
+            foreach ($sections as $index => &$section) {
+                $section['id'] = 'section-' . time() . '-' . $index;
+                $section['order'] = $index;
+            }
+            unset($section);
+
+            $this->logAiRun(
+                'contract_generation',
+                $userId,
+                $companyId,
+                $prompt,
+                [
+                    'usage' => $data['usage'] ?? [],
+                    'summary' => 'Generated ' . count($sections) . ' contract sections',
+                ],
+                $latencyMs,
+                'completed'
+            );
+
+            return [
+                'sections' => $sections,
+                'clickwrap_text' => $result['clickwrap_text'] ?? 'I agree to the terms and conditions outlined above.',
+                'usage' => $data['usage'] ?? [],
+            ];
+
+        } catch (\Exception $e) {
+            $latencyMs = (int)((microtime(true) - $startTime) * 1000);
+            
+            $this->logAiRun(
+                'contract_generation',
+                $userId,
+                $companyId,
+                $prompt,
+                null,
+                $latencyMs,
+                'failed',
+                $e->getMessage()
+            );
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Generate a single contract template section (heading or paragraph) using AI.
+     * Accepts surrounding template context to improve coherence.
+     *
+     * @return array { type: 'heading'|'paragraph', content: {...}, usage?: {...} }
+     */
+    public function generateContractSection(
+        string $prompt,
+        string $sectionType,
+        array $templateContext = [],
+        ?string $userId = null,
+        ?string $companyId = null
+    ): array {
+        if (empty($this->apiKey)) {
+            throw new \Exception('OpenAI API key not configured');
+        }
+
+        if (!in_array($sectionType, ['heading', 'paragraph'], true)) {
+            throw new \InvalidArgumentException('Invalid section type');
+        }
+
+        $templateName = $templateContext['template_name'] ?? null;
+        $contractType = $templateContext['contract_type'] ?? 'fixed_price';
+        $contextSections = $templateContext['sections'] ?? [];
+
+        // Build a concise context summary to keep token usage sane
+        $contextSummary = '';
+        if (is_array($contextSections) && count($contextSections) > 0) {
+            usort($contextSections, function ($a, $b) {
+                $ao = is_array($a) ? ($a['order'] ?? 0) : 0;
+                $bo = is_array($b) ? ($b['order'] ?? 0) : 0;
+                return $ao <=> $bo;
+            });
+
+            $lines = [];
+            foreach ($contextSections as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+                $t = $s['type'] ?? 'unknown';
+                $text = trim((string)($s['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $text = mb_substr($text, 0, 600);
+                $lines[] = strtoupper((string)$t) . ': ' . $text;
+                if (count($lines) >= 20) {
+                    break;
+                }
+            }
+            $contextSummary = implode("\n", $lines);
+        }
+
+        $systemPrompt = <<<'PROMPT'
+You are an expert contract writer. You will generate content for ONE contract template section.
+
+SECTION TYPE TO GENERATE: __SECTION_TYPE__
+CONTRACT TYPE: __CONTRACT_TYPE__
+TEMPLATE NAME: __TEMPLATE_NAME__
+
+OUTPUT FORMAT:
+Return ONLY valid JSON with this exact structure:
+{
+  "type": "heading|paragraph",
+  "content": { ... }
+}
+
+RULES:
+- If type is "heading", content MUST be: { "text": "Short clear heading" }
+- If type is "paragraph", content MUST be: { "html": "<p>...</p>" }
+- For paragraph HTML: use only <p>, <strong>, <em>, <ul>, <ol>, <li>, <br>. No markdown.
+- Use merge fields when appropriate: {{client.full_name}}, {{company.name}}, {{project.name}}, {{today}}, etc.
+- Keep the writing consistent with the provided context, but prioritize the user's instruction for this specific section.
+- Do NOT include any extra keys or commentary outside the JSON object.
+PROMPT;
+
+        $systemPrompt = str_replace(
+            ['__SECTION_TYPE__', '__CONTRACT_TYPE__', '__TEMPLATE_NAME__'],
+            [$sectionType, (string)$contractType, (string)($templateName ?? '')],
+            $systemPrompt
+        );
+
+        $userMessageParts = [];
+        if ($contextSummary !== '') {
+            $userMessageParts[] = "TEMPLATE CONTEXT (other sections):\n" . $contextSummary;
+        }
+        $userMessageParts[] = "USER INSTRUCTION FOR THIS SECTION:\n" . $prompt;
+        $userMessage = implode("\n\n", $userMessageParts);
+
+        $startTime = microtime(true);
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(60)->post($this->baseUrl . '/chat/completions', [
+                'model' => $this->model,
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userMessage],
+                ],
+                'temperature' => 0.6,
+                'max_tokens' => 1200,
+                'response_format' => ['type' => 'json_object'],
+            ]);
+
+            $latencyMs = (int)((microtime(true) - $startTime) * 1000);
+
+            if (!$response->successful()) {
+                $this->logAiRun(
+                    'contract_section_generation',
+                    $userId,
+                    $companyId,
+                    substr($userMessage, 0, 1000),
+                    null,
+                    $latencyMs,
+                    'failed',
+                    $response->body()
+                );
+                throw new \Exception('OpenAI API error: ' . $response->body());
+            }
+
+            $data = $response->json();
+            $contentStr = $data['choices'][0]['message']['content'] ?? '';
+            $result = json_decode($contentStr, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($result)) {
+                throw new \Exception('Failed to parse AI response as JSON');
+            }
+
+            $returnedType = $result['type'] ?? $sectionType;
+            $returnedContent = $result['content'] ?? null;
+
+            if (!in_array($returnedType, ['heading', 'paragraph'], true) || !is_array($returnedContent)) {
+                throw new \Exception('AI response missing required keys (type/content)');
+            }
+
+            if ($returnedType === 'heading') {
+                $text = trim((string)($returnedContent['text'] ?? ''));
+                if ($text === '') {
+                    throw new \Exception('AI heading text was empty');
+                }
+                $returnedContent = ['text' => mb_substr($text, 0, 120)];
+            } else {
+                $html = trim((string)($returnedContent['html'] ?? ''));
+                if ($html === '') {
+                    throw new \Exception('AI paragraph HTML was empty');
+                }
+                if (!str_contains($html, '<p')) {
+                    $safe = htmlspecialchars($html, ENT_QUOTES, 'UTF-8');
+                    $html = '<p>' . $safe . '</p>';
+                }
+                $returnedContent = ['html' => $html];
+            }
+
+            $this->logAiRun(
+                'contract_section_generation',
+                $userId,
+                $companyId,
+                substr($userMessage, 0, 1000),
+                [
+                    'usage' => $data['usage'] ?? [],
+                    'summary' => 'Generated section: ' . $returnedType,
+                ],
+                $latencyMs,
+                'completed'
+            );
+
+            return [
+                'type' => $returnedType,
+                'content' => $returnedContent,
+                'usage' => $data['usage'] ?? [],
+            ];
+        } catch (\Exception $e) {
+            $latencyMs = (int)((microtime(true) - $startTime) * 1000);
+            $this->logAiRun(
+                'contract_section_generation',
+                $userId,
+                $companyId,
+                substr($userMessage ?? $prompt, 0, 1000),
+                null,
+                $latencyMs,
+                'failed',
+                $e->getMessage()
+            );
+            throw $e;
+        }
     }
 
     /**

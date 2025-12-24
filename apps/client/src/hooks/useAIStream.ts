@@ -1,6 +1,8 @@
 import { useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useChatStore } from '../stores/chat'
 import { useAuthStore } from '../stores/auth'
+import { useContractStore } from '../stores/contracts'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -151,7 +153,27 @@ export function useAIStream() {
 export function useChatActions() {
   const { sendMessage, stopStreaming, clearConversation, loadConversations, selectConversation } =
     useChatStore()
+  const { generateContractFromChat, isLoading: isGeneratingContract } = useContractStore()
   const { company, user } = useAuthStore()
+  const location = useLocation()
+
+  // Check if we're on the contract template builder page
+  const isOnTemplateBuilder = location.pathname.includes('/documents/contract-templates/')
+
+  // Pattern to detect contract generation requests
+  const isContractGenerationRequest = useCallback((content: string): boolean => {
+    const patterns = [
+      /generate\s+(a\s+)?contract/i,
+      /create\s+(a\s+)?contract/i,
+      /make\s+(a\s+)?contract/i,
+      /draft\s+(a\s+)?contract/i,
+      /write\s+(a\s+)?contract/i,
+      /build\s+(a\s+)?contract/i,
+      /contract\s+for\s+/i,
+      /contract\s+template\s+for/i,
+    ]
+    return patterns.some(pattern => pattern.test(content))
+  }, [])
 
   const send = useCallback(
     async (content: string) => {
@@ -159,9 +181,22 @@ export function useChatActions() {
         console.error('Cannot send message: missing company or user')
         return
       }
+
+      // If on template builder and message looks like contract generation, handle specially
+      if (isOnTemplateBuilder && isContractGenerationRequest(content)) {
+        try {
+          await generateContractFromChat(content)
+          // The template builder will pick up pendingAISections automatically
+          return
+        } catch (error) {
+          console.error('Contract generation failed:', error)
+          // Fall through to regular chat
+        }
+      }
+
       await sendMessage(content, company.id, user.id)
     },
-    [sendMessage, company?.id, user?.id]
+    [sendMessage, company?.id, user?.id, isOnTemplateBuilder, isContractGenerationRequest, generateContractFromChat]
   )
 
   const stop = useCallback(() => {
@@ -184,6 +219,8 @@ export function useChatActions() {
     clear,
     loadHistory,
     selectConversation,
+    isOnTemplateBuilder,
+    isGeneratingContract,
   }
 }
 

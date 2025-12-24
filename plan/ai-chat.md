@@ -393,3 +393,5 @@ curl -N -X POST "http://localhost:8000/api/v1/ai/chat/stream" \
 | [coding-guidelines.md](./coding-guidelines.md) | PostgreSQL boolean handling, Zustand patterns |
 | [ui-requirements.md](./ui-requirements.md) | Chat UI styling guidelines |
 
+
+

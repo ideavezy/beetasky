@@ -172,7 +172,7 @@ class ProjectManagementService
             ->whereHas('members', function ($q) use ($user) {
                 $q->where('user_id', $user->id)->where('status', 'active');
             })
-            ->with(['members.user', 'creator'])
+            ->with(['members', 'creator'])
             ->withCount(['tasks', 'topics']);
 
         if (!empty($filters['status'])) {
@@ -211,7 +211,7 @@ class ProjectManagementService
             ->whereHas('members', function ($q) use ($user) {
                 $q->where('user_id', $user->id);
             })
-            ->with(['members.user', 'topics', 'creator'])
+            ->with(['members', 'topics', 'creator'])
             ->withCount(['tasks', 'topics'])
             ->find($projectId);
 
@@ -747,7 +747,7 @@ class ProjectManagementService
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
                 'content' => $data['content'] ?? null,
-                'status' => $data['status'] ?? 'new',
+                'status' => $data['status'] ?? 'todo',
                 'priority' => $data['priority'] ?? 'medium',
                 'due_date' => $data['due_date'] ?? null,
                 'order' => $data['order'] ?? $maxOrder + 1,
@@ -807,7 +807,7 @@ class ProjectManagementService
                 $data['completed_at'] = null;
                 $data['completed_by'] = null;
                 if ($task->status === 'done') {
-                    $data['status'] = 'new';
+                    $data['status'] = 'todo';
                 }
             }
         }

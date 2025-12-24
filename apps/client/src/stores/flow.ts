@@ -127,7 +127,7 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      const response = await api.get('/v1/ai/flows', {
+      const response = await api.get('/api/v1/ai/flows', {
         headers: { 'X-Company-ID': companyId },
       })
 
@@ -147,15 +147,19 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      const response = await api.get(`/v1/ai/flows/${flowId}`)
+      console.log('[FlowStore] Loading flow:', flowId)
+      const response = await api.get(`/api/v1/ai/flows/${flowId}`)
+      console.log('[FlowStore] Response:', response.data)
 
       if (response.data.success) {
         const flow = mapFlowFromApi(response.data.data)
+        console.log('[FlowStore] Mapped flow:', flow.status, flow.completedSteps, '/', flow.totalSteps)
         set({ currentFlow: flow })
 
         // Check if any step needs user input
         const awaitingStep = flow.steps.find(s => s.status === 'awaiting_user')
         if (awaitingStep && awaitingStep.promptMessage) {
+          console.log('[FlowStore] Found awaiting step - opening modal')
           set({
             pendingPrompt: {
               flowId: flow.id,
@@ -167,9 +171,12 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
             showPromptModal: true,
           })
         }
+      } else {
+        console.error('[FlowStore] API returned success=false:', response.data)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } }; message?: string }
+      console.error('[FlowStore] Error loading flow:', error.response?.data?.error || error.message)
       set({ error: error.response?.data?.error || error.message || 'Failed to load flow' })
     } finally {
       set({ isLoading: false })
@@ -180,7 +187,7 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      const response = await api.post('/v1/ai/flows', {
+      const response = await api.post('/api/v1/ai/flows', {
         message,
         conversation_id: conversationId,
       }, {
@@ -209,7 +216,7 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
     set({ isSubmitting: true, error: null })
 
     try {
-      const apiResponse = await api.post(`/v1/ai/flows/${flowId}/steps/${stepId}/respond`, {
+      const apiResponse = await api.post(`/api/v1/ai/flows/${flowId}/steps/${stepId}/respond`, {
         response,
       })
 
@@ -232,7 +239,7 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
 
   cancelFlow: async (flowId: string) => {
     try {
-      await api.post(`/v1/ai/flows/${flowId}/cancel`)
+      await api.post(`/api/v1/ai/flows/${flowId}/cancel`)
       set(state => ({
         activeFlows: state.activeFlows.filter(f => f.id !== flowId),
         currentFlow: state.currentFlow?.id === flowId ? null : state.currentFlow,
@@ -249,7 +256,7 @@ export const useFlowStore = create<FlowState>((set, _get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      const response = await api.post(`/v1/ai/flows/${flowId}/retry`)
+      const response = await api.post(`/api/v1/ai/flows/${flowId}/retry`)
 
       if (response.data.success) {
         const flow = mapFlowFromApi(response.data.data)

@@ -370,12 +370,14 @@ function ListViewRow({
   onSelect,
   onTaskClick,
   onToggleComplete,
+  onStatusChange,
 }: {
   task: WorkExecutionTask
   isSelected: boolean
   onSelect: (taskId: string) => void
   onTaskClick: (task: WorkExecutionTask) => void
   onToggleComplete: (taskId: string, completed: boolean) => void
+  onStatusChange: (taskId: string, status: string) => void
 }) {
   const dateInfo = formatDate(task.due_date)
   const column = KANBAN_COLUMNS.find((c) => c.id === task.status)
@@ -474,17 +476,25 @@ function ListViewRow({
 
       {/* Status */}
       <td>
-        {column && (
-          <span
-            className="badge badge-sm"
-            style={{
-              backgroundColor: `${column.color}20`,
-              color: column.color,
-            }}
-          >
-            {column.title}
-          </span>
-        )}
+        <select
+          className="select select-xs select-bordered bg-transparent pr-8"
+          value={task.status}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation()
+            onStatusChange(task.id, e.target.value)
+          }}
+          style={{
+            borderColor: column?.color || undefined,
+            color: column?.color || undefined,
+          }}
+        >
+          {KANBAN_COLUMNS.map((col) => (
+            <option key={col.id} value={col.id} style={{ color: 'inherit' }}>
+              {col.title}
+            </option>
+          ))}
+        </select>
       </td>
 
       {/* Assignees */}
@@ -905,6 +915,11 @@ export default function WorkExecutionPage() {
                       onSelect={toggleTaskSelection}
                       onTaskClick={handleTaskClick}
                       onToggleComplete={handleToggleComplete}
+                      onStatusChange={(taskId, status) => {
+                        if (company?.id) {
+                          updateTaskStatus(taskId, status, company.id)
+                        }
+                      }}
                     />
                   ))}
                 </tbody>

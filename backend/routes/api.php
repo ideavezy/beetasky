@@ -82,6 +82,10 @@ Route::middleware('supabase.auth')->group(function () {
 // ============================================================
 Route::prefix('v1')->middleware('supabase.auth')->group(function () {
     
+    // Generic Upload Endpoints (reusable for any entity type)
+    Route::post('/upload/prepare', [App\Http\Controllers\Api\UploadController::class, 'prepare']);
+    Route::post('/upload/confirm', [App\Http\Controllers\Api\UploadController::class, 'confirm']);
+    
     // Companies
     Route::get('/companies', [App\Http\Controllers\Api\CompanyController::class, 'index']);
     Route::post('/companies', [App\Http\Controllers\Api\CompanyController::class, 'store']);
@@ -268,5 +272,52 @@ Route::prefix('v1')->middleware('supabase.auth')->group(function () {
         Route::post('/{flowId}/steps', [App\Http\Controllers\Api\AiFlowController::class, 'insertStep']);
         Route::delete('/{flowId}/steps/{stepId}', [App\Http\Controllers\Api\AiFlowController::class, 'deleteStep']);
     });
+
+    // ============================================================
+    // Documents Module - Contracts & Invoices
+    // ============================================================
+    
+    // Contract Templates
+    Route::apiResource('contract-templates', App\Http\Controllers\Api\ContractTemplateController::class);
+    Route::post('contract-templates/generate-ai', [App\Http\Controllers\Api\ContractTemplateController::class, 'generateWithAi']);
+    Route::post('contract-templates/generate-section-ai', [App\Http\Controllers\Api\ContractTemplateController::class, 'generateSectionWithAi']);
+    
+    // Contracts
+    Route::apiResource('contracts', App\Http\Controllers\Api\ContractController::class);
+    Route::post('contracts/{id}/send', [App\Http\Controllers\Api\ContractController::class, 'send']);
+    Route::get('contracts/{id}/pdf', [App\Http\Controllers\Api\ContractController::class, 'downloadPdf']);
+    Route::get('contracts/{id}/events', [App\Http\Controllers\Api\ContractController::class, 'events']);
+    
+    // Invoice Templates
+    Route::apiResource('invoice-templates', App\Http\Controllers\Api\InvoiceTemplateController::class);
+    
+    // Invoices
+    Route::apiResource('invoices', App\Http\Controllers\Api\InvoiceController::class);
+    Route::post('invoices/{id}/send', [App\Http\Controllers\Api\InvoiceController::class, 'send']);
+    Route::get('invoices/{id}/pdf', [App\Http\Controllers\Api\InvoiceController::class, 'downloadPdf']);
+    Route::get('invoices/{id}/events', [App\Http\Controllers\Api\InvoiceController::class, 'events']);
+    
+    // Invoice Line Items
+    Route::post('invoices/{invoiceId}/line-items', [App\Http\Controllers\Api\InvoiceController::class, 'addLineItem']);
+    Route::put('invoices/{invoiceId}/line-items/{itemId}', [App\Http\Controllers\Api\InvoiceController::class, 'updateLineItem']);
+    Route::delete('invoices/{invoiceId}/line-items/{itemId}', [App\Http\Controllers\Api\InvoiceController::class, 'deleteLineItem']);
+    
+    // Payments
+    Route::apiResource('payments', App\Http\Controllers\Api\PaymentController::class)->only(['index', 'show']);
+    Route::post('payments/webhook', [App\Http\Controllers\Api\PaymentController::class, 'webhook']);
+});
+
+// ============================================================
+// Public Document Routes (Token-based Authentication)
+// ============================================================
+Route::prefix('public')->group(function () {
+    // Public Contract Viewing & Signing
+    Route::get('contracts/{token}', [App\Http\Controllers\Api\PublicDocumentController::class, 'showContract']);
+    Route::post('contracts/{token}/sign', [App\Http\Controllers\Api\PublicDocumentController::class, 'signContract']);
+    Route::post('contracts/{token}/decline', [App\Http\Controllers\Api\PublicDocumentController::class, 'declineContract']);
+    
+    // Public Invoice Viewing & Payment
+    Route::get('invoices/{token}', [App\Http\Controllers\Api\PublicDocumentController::class, 'showInvoice']);
+    Route::post('invoices/{token}/payment-intent', [App\Http\Controllers\Api\PublicDocumentController::class, 'createPaymentIntent']);
 });
 

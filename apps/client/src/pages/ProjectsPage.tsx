@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FolderOpen,
@@ -10,6 +10,7 @@ import {
 import Layout from '../components/Layout'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore, MODAL_NAMES } from '../stores/modal'
+import { useRefreshStore } from '../stores/refresh'
 import { api } from '../lib/api'
 
 interface Project {
@@ -40,22 +41,14 @@ interface Pagination {
 export default function ProjectsPage() {
   const { company, isLoading: authLoading } = useAuthStore()
   const { openModal } = useModalStore()
+  const projectsVersion = useRefreshStore((state) => state.projectsVersion)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [pagination, setPagination] = useState<Pagination | null>(null)
 
-  useEffect(() => {
-    if (authLoading) return
-    if (company?.id) {
-      fetchProjects()
-    } else {
-      setLoading(false)
-    }
-  }, [company?.id, authLoading])
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     if (!company?.id) return
 
     setLoading(true)
@@ -75,7 +68,24 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [company?.id])
+
+  // Initial load
+  useEffect(() => {
+    if (authLoading) return
+    if (company?.id) {
+      fetchProjects()
+    } else {
+      setLoading(false)
+    }
+  }, [company?.id, authLoading, fetchProjects])
+
+  // Refresh when AI makes changes via skills
+  useEffect(() => {
+    if (projectsVersion > 0 && company?.id) {
+      fetchProjects()
+    }
+  }, [projectsVersion, company?.id, fetchProjects])
 
   const handleCreateProject = () => {
     openModal(MODAL_NAMES.CREATE_PROJECT, {

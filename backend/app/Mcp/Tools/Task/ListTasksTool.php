@@ -42,7 +42,7 @@ class ListTasksTool extends Tool
                 'status' => [
                     'type' => 'string',
                     'description' => 'Filter by task status',
-                    'enum' => ['new', 'working', 'question', 'on_hold', 'in_review', 'done', 'canceled'],
+                    'enum' => ['backlog', 'todo', 'in_progress', 'on_hold', 'in_review', 'done'],
                 ],
                 'priority' => [
                     'type' => 'string',

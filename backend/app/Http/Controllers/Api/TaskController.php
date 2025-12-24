@@ -111,7 +111,7 @@ class TaskController extends Controller
                     'topic_id' => $topicId,
                     'project_id' => $topic->project_id,
                     'company_id' => $companyId,
-                    'status' => $validated['status'] ?? 'new',
+                    'status' => $validated['status'] ?? 'todo',
                     'priority' => $validated['priority'] ?? 'medium',
                 ]);
 
@@ -232,7 +232,7 @@ class TaskController extends Controller
                     $validated['completed_at'] = null;
                     $validated['completed_by'] = null;
                     if ($task->status === 'done') {
-                        $validated['status'] = 'new';
+                        $validated['status'] = 'todo';
                     }
                 }
             }

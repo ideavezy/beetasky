@@ -402,7 +402,7 @@ class AiChatController extends Controller
                 $stepsList = $flow->steps->map(fn($s, $i) => ($i + 1) . ". " . $s->title)->join("\n");
                 $planMessage = "**Flow Created: {$flow->title}**\n\n" .
                     "I've planned the following steps:\n\n{$stepsList}\n\n" .
-                    "Starting execution now...";
+                    "⏳ **Starting execution now.** This will run in the background. I'll notify you when it needs your input or when it's complete.";
 
                 $this->sendSSE([
                     'type' => 'chunk',
